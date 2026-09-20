@@ -94,6 +94,8 @@ calculation is NOT changed.
 */
 
 app.post("/cozy", async (req, res) => {
+    console.log("🧸 COZY POST RECEIVED:", req.body);
+
     try {
         const { username, cozyLevel, secret } = req.body;
 

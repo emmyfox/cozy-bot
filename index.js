@@ -70,28 +70,9 @@ function getDisplayDate() {
     }).format(new Date());
 }
 
-/*
-========================================
-HEALTH CHECK
-========================================
-*/
-
 app.get("/", (req, res) => {
     res.send("🧸 Cozy Bot is awake!");
 });
-
-/*
-========================================
-FINAL COZY RESULT
-========================================
-
-This endpoint is ONLY for the final
-Top Cozy result.
-
-Your existing Mix It Up Cozy
-calculation is NOT changed.
-========================================
-*/
 
 app.post("/cozy", async (req, res) => {
     console.log("🧸 COZY POST RECEIVED:", req.body);
@@ -100,6 +81,8 @@ app.post("/cozy", async (req, res) => {
         const { username, cozyLevel, secret } = req.body;
 
         if (!COZY_WEBHOOK_SECRET || secret !== COZY_WEBHOOK_SECRET) {
+            console.log("❌ Cozy secret rejected.");
+
             return res.status(401).json({
                 success: false,
                 error: "Unauthorized"
@@ -131,7 +114,12 @@ app.post("/cozy", async (req, res) => {
             streamDate
         );
 
+        console.log("🧸 Cozy save result:", wasSaved);
+        console.log("🧸 Discord channel ID:", TOP_COZY_CHANNEL_ID);
+
         if (!wasSaved) {
+            console.log("🧸 Cozy result was already saved today.");
+
             return res.json({
                 success: true,
                 duplicate: true,
@@ -183,12 +171,6 @@ app.post("/cozy", async (req, res) => {
         });
     }
 });
-
-/*
-========================================
-!MYCOZY
-========================================
-*/
 
 client.on("messageCreate", async (message) => {
     if (message.author.bot) return;
@@ -250,23 +232,11 @@ client.on("messageCreate", async (message) => {
     }
 });
 
-/*
-========================================
-BOT READY
-========================================
-*/
-
 client.once("ready", () => {
     console.log(
         `🧸 Cozy Bot online as ${client.user.tag}`
     );
 });
-
-/*
-========================================
-START BOT
-========================================
-*/
 
 async function start() {
     try {

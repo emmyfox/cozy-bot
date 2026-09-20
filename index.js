@@ -75,16 +75,52 @@ app.get("/", (req, res) => {
 });
 
 app.post("/cozy", async (req, res) => {
-    console.log("🧸 COZY POST RECEIVED:", req.body);
+    console.log("🧸 COZY POST RECEIVED:", {
+        username: req.body.username,
+        cozyLevel: req.body.cozyLevel,
+        secret: "[hidden]"
+    });
 
     try {
         const { username, cozyLevel, secret } = req.body;
 
-        // Remove accidental spaces or line breaks from the secret.
-        const receivedSecret = String(secret || "").trim();
-        const savedSecret = String(COZY_WEBHOOK_SECRET || "").trim();
+        // Normalize both sides so accidental spaces/line breaks
+        // do not cause the secret comparison to fail.
+        const receivedSecret = String(secret || "")
+            .replace(/\r/g, "")
+            .replace(/\n/g, "")
+            .trim();
 
-        if (!savedSecret || receivedSecret !== savedSecret) {
+        const savedSecret = String(COZY_WEBHOOK_SECRET || "")
+            .replace(/\r/g, "")
+            .replace(/\n/g, "")
+            .trim();
+
+        console.log(
+            "🔐 Received secret length:",
+            receivedSecret.length
+        );
+
+        console.log(
+            "🔐 Render secret length:",
+            savedSecret.length
+        );
+
+        console.log(
+            "🔐 Secret lengths match:",
+            receivedSecret.length === savedSecret.length
+        );
+
+        if (!savedSecret) {
+            console.log("❌ COZY_WEBHOOK_SECRET is empty in Render.");
+
+            return res.status(500).json({
+                success: false,
+                error: "Server secret is not configured"
+            });
+        }
+
+        if (receivedSecret !== savedSecret) {
             console.log("❌ Cozy secret rejected.");
 
             return res.status(401).json({
@@ -93,10 +129,14 @@ app.post("/cozy", async (req, res) => {
             });
         }
 
+        console.log("✅ Cozy secret accepted.");
+
         const cleanName = cleanUsername(username);
         const level = validCozyLevel(cozyLevel);
 
         if (!cleanName) {
+            console.log("❌ Missing username.");
+
             return res.status(400).json({
                 success: false,
                 error: "Missing username"
@@ -104,6 +144,8 @@ app.post("/cozy", async (req, res) => {
         }
 
         if (level === null) {
+            console.log("❌ Invalid cozy level.");
+
             return res.status(400).json({
                 success: false,
                 error: "Invalid cozy level"
@@ -119,10 +161,15 @@ app.post("/cozy", async (req, res) => {
         );
 
         console.log("🧸 Cozy save result:", wasSaved);
-        console.log("🧸 Discord channel ID:", TOP_COZY_CHANNEL_ID);
+        console.log(
+            "🧸 Discord channel ID:",
+            TOP_COZY_CHANNEL_ID
+        );
 
         if (!wasSaved) {
-            console.log("🧸 Cozy result was already saved today.");
+            console.log(
+                "🧸 Cozy result was already saved today."
+            );
 
             return res.json({
                 success: true,
@@ -136,8 +183,15 @@ app.post("/cozy", async (req, res) => {
         );
 
         if (!channel) {
-            throw new Error("Top Cozy channel not found.");
+            throw new Error(
+                "Top Cozy channel not found."
+            );
         }
+
+        console.log(
+            "✅ Discord channel found:",
+            channel.name
+        );
 
         const displayDate = getDisplayDate();
 

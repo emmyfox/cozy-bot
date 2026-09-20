@@ -80,7 +80,11 @@ app.post("/cozy", async (req, res) => {
     try {
         const { username, cozyLevel, secret } = req.body;
 
-        if (!COZY_WEBHOOK_SECRET || secret !== COZY_WEBHOOK_SECRET) {
+        // Remove accidental spaces or line breaks from the secret.
+        const receivedSecret = String(secret || "").trim();
+        const savedSecret = String(COZY_WEBHOOK_SECRET || "").trim();
+
+        if (!savedSecret || receivedSecret !== savedSecret) {
             console.log("❌ Cozy secret rejected.");
 
             return res.status(401).json({

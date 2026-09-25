@@ -29,6 +29,35 @@ const client = new Client({
     ]
 });
 
+// Discord connection diagnostics
+client.on("debug", function (info) {
+    console.log("🔎 DISCORD DEBUG:", info);
+});
+
+client.on("warn", function (info) {
+    console.log("⚠️ DISCORD WARNING:", info);
+});
+
+client.on("error", function (error) {
+    console.error("❌ DISCORD CLIENT ERROR:", error);
+});
+
+client.on("shardError", function (error) {
+    console.error("❌ DISCORD SHARD ERROR:", error);
+});
+
+client.on("shardReady", function (shardId) {
+    console.log("🟢 DISCORD SHARD READY:", shardId);
+});
+
+client.on("shardDisconnect", function (event, shardId) {
+    console.log(
+        "🔴 DISCORD SHARD DISCONNECTED:",
+        shardId,
+        event
+    );
+});
+
 const TOP_COZY_CHANNEL_ID = process.env.TOP_COZY_CHANNEL_ID;
 const COZY_WEBHOOK_SECRET = process.env.COZY_WEBHOOK_SECRET;
 const TIMEZONE = process.env.TIMEZONE || "America/New_York";
@@ -210,6 +239,8 @@ app.post("/cozy", async function (req, res) {
             );
         }
 
+        console.log("🧸 Attempting to fetch Discord channel...");
+
         const channel = await client.channels.fetch(
             TOP_COZY_CHANNEL_ID
         );
@@ -243,9 +274,13 @@ app.post("/cozy", async function (req, res) {
             .setTitle("🧸 TOP COZY!")
             .setDescription(description);
 
+        console.log("🧸 Sending Top Cozy message to Discord...");
+
         await channel.send({
             embeds: [embed]
         });
+
+        console.log("✅ Top Cozy message sent to Discord!");
 
         await markDiscordPosted(cozyRecord.id);
 

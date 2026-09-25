@@ -1,3 +1,4 @@
+```js
 require("dotenv").config();
 
 const express = require("express");
@@ -71,9 +72,17 @@ function getDisplayDate() {
     }).format(new Date());
 }
 
+// --------------------------------------------------
+// HEALTH CHECK
+// --------------------------------------------------
+
 app.get("/", (req, res) => {
     res.send("🧸 Cozy Bot is awake!");
 });
+
+// --------------------------------------------------
+// COZY WEBHOOK
+// --------------------------------------------------
 
 app.post("/cozy", async (req, res) => {
     console.log("🧸 COZY POST RECEIVED:", {
@@ -83,7 +92,11 @@ app.post("/cozy", async (req, res) => {
     });
 
     try {
-        const { username, cozyLevel, secret } = req.body;
+        const {
+            username,
+            cozyLevel,
+            secret
+        } = req.body;
 
         const receivedSecret = String(secret || "")
             .replace(/\r/g, "")
@@ -111,7 +124,9 @@ app.post("/cozy", async (req, res) => {
         );
 
         if (!savedSecret) {
-            console.log("❌ COZY_WEBHOOK_SECRET is empty in Render.");
+            console.log(
+                "❌ COZY_WEBHOOK_SECRET is empty in Render."
+            );
 
             return res.status(500).json({
                 success: false,
@@ -182,10 +197,10 @@ app.post("/cozy", async (req, res) => {
             cozyRecord.discord_posted
         );
 
-        /*
-         * If this exact result was already posted,
-         * do not create another Discord message.
-         */
+        // --------------------------------------------------
+        // DO NOT POST TWICE
+        // --------------------------------------------------
+
         if (cozyRecord.discord_posted) {
             console.log(
                 "🧸 Cozy result was already posted to Discord."
@@ -197,13 +212,39 @@ app.post("/cozy", async (req, res) => {
                 alreadyPosted: true,
                 username: cozyRecord.username,
                 cozyLevel: cozyRecord.cozy_level,
-                message: "This Cozy result was already posted today."
+                message:
+                    "This Cozy result was already posted today."
             });
         }
 
         console.log(
             "🧸 Discord channel ID:",
             TOP_COZY_CHANNEL_ID
+        );
+
+        if (!TOP_COZY_CHANNEL_ID) {
+            throw new Error(
+                "TOP_COZY_CHANNEL_ID is missing from Render environment variables."
+            );
+        }
+
+        // --------------------------------------------------
+        // CHECK DISCORD CONNECTION
+        // --------------------------------------------------
+
+        console.log(
+            "🔌 Discord client ready state:",
+            client.isReady()
+        );
+
+        if (!client.isReady()) {
+            throw new Error(
+                "Discord bot is not connected yet."
+            );
+        }
+
+        console.log(
+            "🔎 Fetching Discord channel..."
         );
 
         const channel = await client.channels.fetch(
@@ -232,14 +273,22 @@ app.post("/cozy", async (req, res) => {
                 `☕ Thank you for being cozy! 💜`
             );
 
+        console.log(
+            "📤 Sending Top Cozy message to Discord..."
+        );
+
         await channel.send({
             embeds: [embed]
         });
 
-        /*
-         * Only mark the database record as posted
-         * AFTER Discord successfully accepts the message.
-         */
+        console.log(
+            "✅ Discord accepted the Top Cozy message."
+        );
+
+        // --------------------------------------------------
+        // ONLY MARK POSTED AFTER DISCORD SUCCEEDS
+        // --------------------------------------------------
+
         await markDiscordPosted(cozyRecord.id);
 
         console.log(
@@ -264,6 +313,10 @@ app.post("/cozy", async (req, res) => {
         });
     }
 });
+
+// --------------------------------------------------
+// !MYCOZY
+// --------------------------------------------------
 
 client.on("messageCreate", async (message) => {
     if (message.author.bot) return;
@@ -312,7 +365,9 @@ client.on("messageCreate", async (message) => {
             .join("\n");
 
         const embed = new EmbedBuilder()
-            .setTitle(`🧸 ${username}'s Cozy History`)
+            .setTitle(
+                `🧸 ${username}'s Cozy History`
+            )
             .setDescription(
                 `🏆 **${winCount} Top Cozy ` +
                 `${winCount === 1 ? "win" : "wins"}**\n\n` +
@@ -325,7 +380,10 @@ client.on("messageCreate", async (message) => {
         });
 
     } catch (error) {
-        console.error("❌ !mycozy error:", error);
+        console.error(
+            "❌ !mycozy error:",
+            error
+        );
 
         await message.reply(
             "🧸 Oops! I couldn't retrieve your Cozy history right now."
@@ -333,14 +391,51 @@ client.on("messageCreate", async (message) => {
     }
 });
 
+// --------------------------------------------------
+// DISCORD EVENTS
+// --------------------------------------------------
+
 client.once("ready", () => {
     console.log(
         `🧸 Cozy Bot online as ${client.user.tag}`
     );
+
+    console.log(
+        "🧸 Discord connection is READY!"
+    );
 });
+
+client.on("error", (error) => {
+    console.error(
+        "❌ DISCORD CLIENT ERROR:",
+        error
+    );
+});
+
+client.on("shardError", (error) => {
+    console.error(
+        "❌ DISCORD SHARD ERROR:",
+        error
+    );
+});
+
+client.on("warn", (warning) => {
+    console.warn(
+        "⚠️ DISCORD WARNING:",
+        warning
+    );
+});
+
+// --------------------------------------------------
+// START BOT
+// --------------------------------------------------
 
 async function start() {
     try {
+        console.log(
+            "🧸 Starting Cozy Bot..."
+        );
+
         await initializeDatabase();
 
         app.listen(PORT, () => {
@@ -349,13 +444,27 @@ async function start() {
             );
         });
 
+        console.log(
+            "🔌 Connecting to Discord..."
+        );
+
+        if (!process.env.DISCORD_TOKEN) {
+            throw new Error(
+                "DISCORD_TOKEN is missing from Render environment variables."
+            );
+        }
+
         await client.login(
             process.env.DISCORD_TOKEN
         );
 
+        console.log(
+            "🔌 Discord login request completed."
+        );
+
     } catch (error) {
         console.error(
-            "❌ Failed to start Cozy Bot:",
+            "❌ DISCORD LOGIN ERROR:",
             error
         );
 
@@ -364,3 +473,10 @@ async function start() {
 }
 
 start();
+```
+
+**Now just replace the entire `index.js` on GitHub with that.**
+
+Then commit the change and let Render redeploy.
+
+**Don't run Mix It Up yet.** After the deployment, the logs should tell

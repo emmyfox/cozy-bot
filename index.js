@@ -99,7 +99,27 @@ function getDisplayDate() {
 client.once("ready", () => {
     console.log(
         `🧸 Cozy Bot ONLINE as ${client.user.tag}!`
+    );client.once("ready", () => {
+    console.log(
+        `🧸 Cozy Bot ONLINE as ${client.user.tag}!`
     );
+
+    console.log(
+        `🧸 Discord User ID: ${client.user.id}`
+    );
+});
+
+client.on("error", (error) => {
+    console.error("❌ DISCORD CLIENT ERROR:", error);
+});
+
+client.on("warn", (warning) => {
+    console.warn("⚠️ DISCORD WARNING:", warning);
+});
+
+client.on("debug", (info) => {
+    console.log("🔎 DISCORD DEBUG:", info);
+});
 
     console.log(
         `🧸 Discord User ID: ${client.user.id}`

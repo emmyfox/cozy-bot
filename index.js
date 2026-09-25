@@ -29,11 +29,6 @@ const client = new Client({
     ]
 });
 
-// Discord connection diagnostics
-client.on("debug", function (info) {
-    console.log("🔎 DISCORD DEBUG:", info);
-});
-
 client.on("warn", function (info) {
     console.log("⚠️ DISCORD WARNING:", info);
 });
@@ -55,6 +50,13 @@ client.on("shardDisconnect", function (event, shardId) {
         "🔴 DISCORD SHARD DISCONNECTED:",
         shardId,
         event
+    );
+});
+
+client.on("shardReconnecting", function (shardId) {
+    console.log(
+        "🟡 DISCORD SHARD RECONNECTING:",
+        shardId
     );
 });
 
@@ -165,8 +167,6 @@ app.post("/cozy", async function (req, res) {
         const level = validCozyLevel(cozyLevel);
 
         if (!cleanName) {
-            console.log("❌ Missing username.");
-
             return res.status(400).json({
                 success: false,
                 error: "Missing username"
@@ -174,8 +174,6 @@ app.post("/cozy", async function (req, res) {
         }
 
         if (level === null) {
-            console.log("❌ Invalid cozy level.");
-
             return res.status(400).json({
                 success: false,
                 error: "Invalid cozy level"
@@ -214,10 +212,6 @@ app.post("/cozy", async function (req, res) {
         );
 
         if (cozyRecord.discord_posted) {
-            console.log(
-                "🧸 Cozy result was already posted to Discord."
-            );
-
             return res.json({
                 success: true,
                 duplicate: true,
@@ -239,7 +233,20 @@ app.post("/cozy", async function (req, res) {
             );
         }
 
-        console.log("🧸 Attempting to fetch Discord channel...");
+        if (!client.isReady()) {
+            console.log(
+                "⚠️ Discord client is NOT ready yet."
+            );
+
+            return res.status(503).json({
+                success: false,
+                error: "Discord bot is not connected yet."
+            });
+        }
+
+        console.log(
+            "✅ Discord client is ready."
+        );
 
         const channel = await client.channels.fetch(
             TOP_COZY_CHANNEL_ID
@@ -274,13 +281,17 @@ app.post("/cozy", async function (req, res) {
             .setTitle("🧸 TOP COZY!")
             .setDescription(description);
 
-        console.log("🧸 Sending Top Cozy message to Discord...");
+        console.log(
+            "🧸 Sending Top Cozy message to Discord..."
+        );
 
         await channel.send({
             embeds: [embed]
         });
 
-        console.log("✅ Top Cozy message sent to Discord!");
+        console.log(
+            "✅ Top Cozy message sent to Discord!"
+        );
 
         await markDiscordPosted(cozyRecord.id);
 
@@ -404,8 +415,13 @@ client.on("messageCreate", async function (message) {
 
 client.once("ready", function () {
     console.log(
-        "🧸 Cozy Bot online as " +
+        "🧸 Cozy Bot ONLINE as " +
         client.user.tag
+    );
+
+    console.log(
+        "🧸 Connected Discord Guilds:",
+        client.guilds.cache.size
     );
 });
 
@@ -452,8 +468,27 @@ async function start() {
             "🧸 Connecting to Discord..."
         );
 
-        await client.login(
+        const loginPromise = client.login(
             process.env.DISCORD_TOKEN
+        );
+
+        const timeoutPromise = new Promise(function (_, reject) {
+            setTimeout(function () {
+                reject(
+                    new Error(
+                        "Discord Gateway connection timed out after 30 seconds."
+                    )
+                );
+            }, 30000);
+        });
+
+        await Promise.race([
+            loginPromise,
+            timeoutPromise
+        ]);
+
+        console.log(
+            "🧸 Discord login completed."
         );
 
     } catch (error) {

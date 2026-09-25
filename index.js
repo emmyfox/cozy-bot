@@ -14,9 +14,9 @@ const {
     getCozyWinCount
 } = require("./database");
 
-// --------------------------------------------------
+// ==================================================
 // ENVIRONMENT VARIABLES
-// --------------------------------------------------
+// ==================================================
 
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 const TOP_COZY_CHANNEL_ID = process.env.TOP_COZY_CHANNEL_ID;
@@ -24,9 +24,9 @@ const COZY_WEBHOOK_SECRET = process.env.COZY_WEBHOOK_SECRET;
 
 const PORT = process.env.PORT || 10000;
 
-// --------------------------------------------------
+// ==================================================
 // DISCORD CLIENT
-// --------------------------------------------------
+// ==================================================
 
 const client = new Client({
     intents: [
@@ -36,9 +36,9 @@ const client = new Client({
     ]
 });
 
-// --------------------------------------------------
-// DISCORD EVENTS / DEBUGGING
-// --------------------------------------------------
+// ==================================================
+// DISCORD EVENTS
+// ==================================================
 
 client.once("ready", () => {
     console.log(
@@ -60,11 +60,9 @@ client.on("warn", (warning) => {
     );
 });
 
-});
-
-// --------------------------------------------------
+// ==================================================
 // EXPRESS WEB SERVER
-// --------------------------------------------------
+// ==================================================
 
 const app = express();
 
@@ -74,9 +72,9 @@ app.get("/", (req, res) => {
     res.send("🧸 Cozy Bot is alive!");
 });
 
-// --------------------------------------------------
-// SEND TOP COZY MESSAGE
-// --------------------------------------------------
+// ==================================================
+// SEND TOP COZY MESSAGE TO DISCORD
+// ==================================================
 
 async function sendTopCozyMessage(
     username,
@@ -130,7 +128,6 @@ async function sendTopCozyMessage(
         return true;
 
     } catch (error) {
-
         console.error(
             "❌ Failed to send Top Cozy message:",
             error
@@ -140,9 +137,9 @@ async function sendTopCozyMessage(
     }
 }
 
-// --------------------------------------------------
+// ==================================================
 // COZY WEBHOOK
-// --------------------------------------------------
+// ==================================================
 
 app.post("/cozy", async (req, res) => {
 
@@ -183,7 +180,7 @@ app.post("/cozy", async (req, res) => {
         );
 
         // ------------------------------------------
-        // CLEAN USERNAME
+        // USERNAME
         // ------------------------------------------
 
         const username =
@@ -191,26 +188,21 @@ app.post("/cozy", async (req, res) => {
                 req.body.username || ""
             ).trim();
 
+        if (!username) {
+            return res.status(400).json({
+                success: false,
+                message: "Username is required."
+            });
+        }
+
         // ------------------------------------------
-        // CLEAN COZY LEVEL
+        // COZY LEVEL
         // ------------------------------------------
 
         const cozyLevel =
             Number(
                 req.body.cozyLevel
             );
-
-        // ------------------------------------------
-        // VALIDATE DATA
-        // ------------------------------------------
-
-        if (!username) {
-
-            return res.status(400).json({
-                success: false,
-                message: "Username is required."
-            });
-        }
 
         if (
             !Number.isInteger(cozyLevel) ||
@@ -226,7 +218,7 @@ app.post("/cozy", async (req, res) => {
         }
 
         // ------------------------------------------
-        // USE TODAY'S DATE
+        // TODAY'S DATE
         // ------------------------------------------
 
         const streamDate =
@@ -268,7 +260,7 @@ app.post("/cozy", async (req, res) => {
         );
 
         // ------------------------------------------
-        // DON'T POST TWICE
+        // DON'T POST THE SAME RESULT TWICE
         // ------------------------------------------
 
         if (
@@ -288,7 +280,7 @@ app.post("/cozy", async (req, res) => {
         }
 
         // ------------------------------------------
-        // MAKE SURE DISCORD IS ONLINE
+        // CHECK DISCORD CONNECTION
         // ------------------------------------------
 
         if (!client.isReady()) {
@@ -358,9 +350,9 @@ app.post("/cozy", async (req, res) => {
     }
 });
 
-// --------------------------------------------------
+// ==================================================
 // !MYCOZY
-// --------------------------------------------------
+// ==================================================
 
 client.on(
     "messageCreate",
@@ -368,10 +360,12 @@ client.on(
 
         try {
 
+            // Ignore bots
             if (message.author.bot) {
                 return;
             }
 
+            // Only respond to !mycozy
             if (
                 message.content
                     .trim()
@@ -386,6 +380,10 @@ client.on(
             console.log(
                 `🧸 !mycozy requested by ${username}`
             );
+
+            // --------------------------------------
+            // GET HISTORY
+            // --------------------------------------
 
             const history =
                 await getCozyHistory(
@@ -420,7 +418,7 @@ client.on(
             }
 
             // --------------------------------------
-            // HISTORY
+            // BUILD HISTORY
             // --------------------------------------
 
             const historyText =
@@ -479,9 +477,9 @@ client.on(
     }
 );
 
-// --------------------------------------------------
+// ==================================================
 // START BOT
-// --------------------------------------------------
+// ==================================================
 
 async function start() {
 
@@ -492,7 +490,7 @@ async function start() {
         );
 
         // ------------------------------------------
-        // CHECK ENVIRONMENT
+        // CHECK REQUIRED ENVIRONMENT VARIABLES
         // ------------------------------------------
 
         if (!DISCORD_TOKEN) {
@@ -531,7 +529,7 @@ async function start() {
         );
 
         // ------------------------------------------
-        // WEB SERVER
+        // RENDER WEB SERVER
         // ------------------------------------------
 
         app.listen(
@@ -598,5 +596,9 @@ async function start() {
         process.exit(1);
     }
 }
+
+// ==================================================
+// RUN
+// ==================================================
 
 start();

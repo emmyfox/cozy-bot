@@ -32,20 +32,8 @@ GatewayIntentBits.MessageContent
 // ======================================================
 // DISCORD GATEWAY DIAGNOSTICS
 // ======================================================
-
 client.on("debug", function (info) {
-if (
-info.includes("Provided token:") ||
-info.includes("Authorization:")
-) {
-console.log("🔎 DISCORD DEBUG: Token information hidden.");
-return;
-}
-
-
 console.log("🔎 DISCORD DEBUG:", info);
-
-
 });
 
 client.on("warn", function (info) {

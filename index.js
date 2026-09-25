@@ -10,6 +10,7 @@ const {
 const {
     initializeDatabase,
     saveCozy,
+    markDiscordPosted,
     getCozyHistory,
     getCozyWinCount
 } = require("./database");
@@ -84,8 +85,6 @@ app.post("/cozy", async (req, res) => {
     try {
         const { username, cozyLevel, secret } = req.body;
 
-        // Normalize both sides so accidental spaces/line breaks
-        // do not cause the secret comparison to fail.
         const receivedSecret = String(secret || "")
             .replace(/\r/g, "")
             .replace(/\n/g, "")
@@ -154,29 +153,58 @@ app.post("/cozy", async (req, res) => {
 
         const streamDate = getToday();
 
-        const wasSaved = await saveCozy(
+        const saveResult = await saveCozy(
             cleanName,
             level,
             streamDate
         );
 
-        console.log("🧸 Cozy save result:", wasSaved);
         console.log(
-            "🧸 Discord channel ID:",
-            TOP_COZY_CHANNEL_ID
+            "🧸 Cozy save result:",
+            saveResult.saved
         );
 
-        if (!wasSaved) {
+        if (!saveResult.row) {
+            throw new Error(
+                "Could not save or find Cozy result."
+            );
+        }
+
+        const cozyRecord = saveResult.row;
+
+        console.log(
+            "🧸 Cozy record ID:",
+            cozyRecord.id
+        );
+
+        console.log(
+            "🧸 Discord already posted:",
+            cozyRecord.discord_posted
+        );
+
+        /*
+         * If this exact result was already posted,
+         * do not create another Discord message.
+         */
+        if (cozyRecord.discord_posted) {
             console.log(
-                "🧸 Cozy result was already saved today."
+                "🧸 Cozy result was already posted to Discord."
             );
 
             return res.json({
                 success: true,
                 duplicate: true,
-                message: "This Cozy result was already saved today."
+                alreadyPosted: true,
+                username: cozyRecord.username,
+                cozyLevel: cozyRecord.cozy_level,
+                message: "This Cozy result was already posted today."
             });
         }
+
+        console.log(
+            "🧸 Discord channel ID:",
+            TOP_COZY_CHANNEL_ID
+        );
 
         const channel = await client.channels.fetch(
             TOP_COZY_CHANNEL_ID
@@ -208,13 +236,20 @@ app.post("/cozy", async (req, res) => {
             embeds: [embed]
         });
 
+        /*
+         * Only mark the database record as posted
+         * AFTER Discord successfully accepts the message.
+         */
+        await markDiscordPosted(cozyRecord.id);
+
         console.log(
-            `🧸 Final Cozy saved: ${cleanName} - ${level}% - ${displayDate}`
+            `🧸 Final Cozy saved and posted: ${cleanName} - ${level}% - ${displayDate}`
         );
 
         return res.json({
             success: true,
-            duplicate: false,
+            duplicate: !saveResult.saved,
+            alreadyPosted: false,
             username: cleanName,
             cozyLevel: level,
             date: displayDate
@@ -239,7 +274,15 @@ client.on("messageCreate", async (message) => {
         return;
     }
 
-    const username = message.author.username;
+    const parts = content.split(/\s+/);
+
+    let username;
+
+    if (parts.length > 1) {
+        username = cleanUsername(parts[1]);
+    } else {
+        username = message.author.username;
+    }
 
     try {
         const history = await getCozyHistory(username);

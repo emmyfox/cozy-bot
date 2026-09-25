@@ -60,6 +60,39 @@ client.on("warn", (warning) => {
     );
 });
 
+client.on("shardReconnecting", (id) => {
+    console.log(
+        "🔄 Discord shard reconnecting:",
+        id
+    );
+});
+
+client.on("shardReady", (id) => {
+    console.log(
+        "🟢 Discord shard ready:",
+        id
+    );
+});
+
+client.on("shardDisconnect", (event, id) => {
+    console.log(
+        "🔴 Discord shard disconnected:",
+        id,
+        "code:",
+        event.code,
+        "reason:",
+        event.reason
+    );
+});
+
+client.on("shardError", (error, id) => {
+    console.error(
+        "❌ Discord shard error:",
+        id,
+        error
+    );
+});
+
 // ==================================================
 // EXPRESS WEB SERVER
 // ==================================================
@@ -73,7 +106,7 @@ app.get("/", (req, res) => {
 });
 
 // ==================================================
-// SEND TOP COZY MESSAGE TO DISCORD
+// SEND TOP COZY MESSAGE
 // ==================================================
 
 async function sendTopCozyMessage(
@@ -82,6 +115,7 @@ async function sendTopCozyMessage(
     streamDate
 ) {
     try {
+
         const channel =
             await client.channels.fetch(
                 TOP_COZY_CHANNEL_ID
@@ -128,6 +162,7 @@ async function sendTopCozyMessage(
         return true;
 
     } catch (error) {
+
         console.error(
             "❌ Failed to send Top Cozy message:",
             error
@@ -189,6 +224,7 @@ app.post("/cozy", async (req, res) => {
             ).trim();
 
         if (!username) {
+
             return res.status(400).json({
                 success: false,
                 message: "Username is required."
@@ -218,7 +254,7 @@ app.post("/cozy", async (req, res) => {
         }
 
         // ------------------------------------------
-        // TODAY'S DATE
+        // DATE
         // ------------------------------------------
 
         const streamDate =
@@ -260,7 +296,7 @@ app.post("/cozy", async (req, res) => {
         );
 
         // ------------------------------------------
-        // DON'T POST THE SAME RESULT TWICE
+        // DON'T POST TWICE
         // ------------------------------------------
 
         if (
@@ -280,7 +316,7 @@ app.post("/cozy", async (req, res) => {
         }
 
         // ------------------------------------------
-        // CHECK DISCORD CONNECTION
+        // CHECK DISCORD
         // ------------------------------------------
 
         if (!client.isReady()) {
@@ -297,7 +333,7 @@ app.post("/cozy", async (req, res) => {
         }
 
         // ------------------------------------------
-        // POST TO DISCORD
+        // POST
         // ------------------------------------------
 
         const posted =
@@ -317,7 +353,7 @@ app.post("/cozy", async (req, res) => {
         }
 
         // ------------------------------------------
-        // MARK AS POSTED
+        // MARK POSTED
         // ------------------------------------------
 
         await markDiscordPosted(
@@ -360,12 +396,10 @@ client.on(
 
         try {
 
-            // Ignore bots
             if (message.author.bot) {
                 return;
             }
 
-            // Only respond to !mycozy
             if (
                 message.content
                     .trim()
@@ -380,10 +414,6 @@ client.on(
             console.log(
                 `🧸 !mycozy requested by ${username}`
             );
-
-            // --------------------------------------
-            // GET HISTORY
-            // --------------------------------------
 
             const history =
                 await getCozyHistory(
@@ -418,7 +448,7 @@ client.on(
             }
 
             // --------------------------------------
-            // BUILD HISTORY
+            // HISTORY
             // --------------------------------------
 
             const historyText =
@@ -490,7 +520,7 @@ async function start() {
         );
 
         // ------------------------------------------
-        // CHECK REQUIRED ENVIRONMENT VARIABLES
+        // CHECK ENVIRONMENT
         // ------------------------------------------
 
         if (!DISCORD_TOKEN) {
@@ -529,7 +559,7 @@ async function start() {
         );
 
         // ------------------------------------------
-        // RENDER WEB SERVER
+        // WEB SERVER
         // ------------------------------------------
 
         app.listen(

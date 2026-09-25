@@ -32,8 +32,20 @@ GatewayIntentBits.MessageContent
 // ======================================================
 // DISCORD GATEWAY DIAGNOSTICS
 // ======================================================
+
 client.on("debug", function (info) {
+if (
+info.includes("Provided token:") ||
+info.includes("Authorization:")
+) {
+console.log("🔎 DISCORD DEBUG: Token information hidden.");
+return;
+}
+
+
 console.log("🔎 DISCORD DEBUG:", info);
+
+
 });
 
 client.on("warn", function (info) {
@@ -304,10 +316,18 @@ try {
         "✅ Discord client is ready."
     );
 
+    console.log(
+        "🔎 Attempting to fetch Discord channel..."
+    );
+
     const channel =
         await client.channels.fetch(
             TOP_COZY_CHANNEL_ID
         );
+
+    console.log(
+        "🔎 Discord channel fetch completed."
+    );
 
     if (!channel) {
         throw new Error(
@@ -628,9 +648,26 @@ try {
         ).trim().length
     );
 
-    await client.login(
-        process.env.DISCORD_TOKEN
-    );
+    const loginPromise =
+        client.login(
+            process.env.DISCORD_TOKEN
+        );
+
+    const loginTimeout =
+        new Promise(function (_, reject) {
+            setTimeout(function () {
+                reject(
+                    new Error(
+                        "Discord Gateway login timed out after 30 seconds."
+                    )
+                );
+            }, 30000);
+        });
+
+    await Promise.race([
+        loginPromise,
+        loginTimeout
+    ]);
 
     console.log(
         "🧸 Discord login() returned successfully."

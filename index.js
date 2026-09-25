@@ -144,8 +144,6 @@ app.post("/cozy", async function (req, res) {
         );
 
         if (!savedSecret) {
-            console.log("❌ COZY_WEBHOOK_SECRET is empty in Render.");
-
             return res.status(500).json({
                 success: false,
                 error: "Server secret is not configured"
@@ -244,9 +242,7 @@ app.post("/cozy", async function (req, res) {
             });
         }
 
-        console.log(
-            "✅ Discord client is ready."
-        );
+        console.log("✅ Discord client is ready.");
 
         const channel = await client.channels.fetch(
             TOP_COZY_CHANNEL_ID
@@ -280,10 +276,6 @@ app.post("/cozy", async function (req, res) {
         const embed = new EmbedBuilder()
             .setTitle("🧸 TOP COZY!")
             .setDescription(description);
-
-        console.log(
-            "🧸 Sending Top Cozy message to Discord..."
-        );
 
         await channel.send({
             embeds: [embed]
@@ -425,6 +417,65 @@ client.once("ready", function () {
     );
 });
 
+async function checkDiscordApi() {
+    const token = String(
+        process.env.DISCORD_TOKEN || ""
+    ).trim();
+
+    console.log(
+        "🧪 Discord token exists:",
+        Boolean(token)
+    );
+
+    console.log(
+        "🧪 Discord token length:",
+        token.length
+    );
+
+    console.log(
+        "🧪 Testing Discord HTTPS API..."
+    );
+
+    const response = await fetch(
+        "https://discord.com/api/v10/users/@me",
+        {
+            method: "GET",
+            headers: {
+                Authorization: "Bot " + token
+            }
+        }
+    );
+
+    const text = await response.text();
+
+    console.log(
+        "🧪 Discord HTTPS status:",
+        response.status
+    );
+
+    if (!response.ok) {
+        console.log(
+            "❌ Discord HTTPS response:",
+            text
+        );
+
+        throw new Error(
+            "Discord HTTPS API rejected the bot token."
+        );
+    }
+
+    const user = JSON.parse(text);
+
+    console.log(
+        "✅ Discord HTTPS API works."
+    );
+
+    console.log(
+        "🧸 Discord bot account:",
+        user.username
+    );
+}
+
 async function start() {
     try {
         console.log("🧸 Starting Cozy Bot...");
@@ -464,28 +515,15 @@ async function start() {
             );
         });
 
+        await checkDiscordApi();
+
         console.log(
-            "🧸 Connecting to Discord..."
+            "🧸 Connecting to Discord Gateway..."
         );
 
-        const loginPromise = client.login(
+        await client.login(
             process.env.DISCORD_TOKEN
         );
-
-        const timeoutPromise = new Promise(function (_, reject) {
-            setTimeout(function () {
-                reject(
-                    new Error(
-                        "Discord Gateway connection timed out after 30 seconds."
-                    )
-                );
-            }, 30000);
-        });
-
-        await Promise.race([
-            loginPromise,
-            timeoutPromise
-        ]);
 
         console.log(
             "🧸 Discord login completed."

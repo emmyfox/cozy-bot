@@ -1,594 +1,185 @@
 require("dotenv").config();
 
 const express = require("express");
-const WebSocket = require("ws");
+const {
+    Client,
+    GatewayIntentBits
+} = require("discord.js");
 
 const {
-initializeDatabase,
-saveCozy,
-markDiscordPosted,
-getCozyHistory,
-getCozyWinCount
+    initializeDatabase,
+    saveCozy,
+    markDiscordPosted,
+    getCozyHistory,
+    getCozyWinCount
 } = require("./database");
 
-const app = express();
-app.use(express.json());
+// --------------------------------------------------
+// ENVIRONMENT VARIABLES
+// --------------------------------------------------
+
+const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
+const TOP_COZY_CHANNEL_ID = process.env.TOP_COZY_CHANNEL_ID;
+const COZY_WEBHOOK_SECRET = process.env.COZY_WEBHOOK_SECRET;
 
 const PORT = process.env.PORT || 10000;
 
-const TOP_COZY_CHANNEL_ID =
-process.env.TOP_COZY_CHANNEL_ID;
+// --------------------------------------------------
+// DISCORD CLIENT
+// --------------------------------------------------
 
-const COZY_WEBHOOK_SECRET =
-process.env.COZY_WEBHOOK_SECRET;
+const client = new Client({
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent
+    ]
+});
 
-const TIMEZONE =
-process.env.TIMEZONE || "America/New_York";
+// --------------------------------------------------
+// DISCORD EVENTS / DEBUGGING
+// --------------------------------------------------
 
-const DISCORD_TOKEN =
-process.env.DISCORD_TOKEN;
-
-let discordSocket = null;
-let discordReady = false;
-let heartbeatTimer = null;
-let heartbeatInterval = null;
-let sequenceNumber = null;
-let reconnectTimer = null;
-let reconnectAttempts = 0;
-
-// ======================================================
-// HELPERS
-// ======================================================
-
-function cleanUsername(username) {
-return String(username || "")
-.replace(/^@/, "")
-.trim();
-}
-
-function validCozyLevel(level) {
-const number = Number(level);
-
-
-if (!Number.isFinite(number)) {
-    return null;
-}
-
-if (number < 0 || number > 100) {
-    return null;
-}
-
-return Math.round(number);
-
-
-}
-
-function getToday() {
-return new Intl.DateTimeFormat("en-CA", {
-timeZone: TIMEZONE,
-year: "numeric",
-month: "2-digit",
-day: "2-digit"
-}).format(new Date());
-}
-
-function getDisplayDate() {
-return new Intl.DateTimeFormat("en-US", {
-timeZone: TIMEZONE,
-year: "numeric",
-month: "long",
-day: "numeric"
-}).format(new Date());
-}
-
-// ======================================================
-// DISCORD API
-// ======================================================
-
-async function discordRequest(path, options = {}) {
-
-
-const response = await fetch(
-    "https://discord.com/api/v10" + path,
-    {
-        ...options,
-        headers: {
-            Authorization:
-                "Bot " + DISCORD_TOKEN,
-
-            "Content-Type":
-                "application/json",
-
-            ...(options.headers || {})
-        }
-    }
-);
-
-if (!response.ok) {
-
-    const text =
-        await response.text();
-
-    throw new Error(
-        "Discord API " +
-        response.status +
-        ": " +
-        text.substring(0, 500)
+client.once("ready", () => {
+    console.log(
+        `🧸 Cozy Bot ONLINE as ${client.user.tag}`
     );
-}
+});
 
-if (response.status === 204) {
-    return null;
-}
+client.on("error", (error) => {
+    console.error(
+        "❌ DISCORD CLIENT ERROR:",
+        error
+    );
+});
 
-return response.json();
+client.on("warn", (warning) => {
+    console.warn(
+        "⚠️ DISCORD WARNING:",
+        warning
+    );
+});
 
+client.on("debug", (info) => {
+    console.log(
+        "🔎 DISCORD DEBUG:",
+        info
+    );
+});
 
-}
+// --------------------------------------------------
+// EXPRESS WEB SERVER
+// --------------------------------------------------
 
-// ======================================================
-// SEND DISCORD MESSAGE
-// ======================================================
+const app = express();
+
+app.use(express.json());
+
+app.get("/", (req, res) => {
+    res.send("🧸 Cozy Bot is alive!");
+});
+
+// --------------------------------------------------
+// SEND TOP COZY MESSAGE
+// --------------------------------------------------
 
 async function sendTopCozyMessage(
-username,
-level,
-displayDate
+    username,
+    cozyLevel,
+    streamDate
 ) {
+    try {
+        const channel =
+            await client.channels.fetch(
+                TOP_COZY_CHANNEL_ID
+            );
 
+        if (!channel) {
+            throw new Error(
+                "Top Cozy Discord channel was not found."
+            );
+        }
 
-const description =
-    "✨ **" +
-    username +
-    "** was today's Top Cozy!\n\n" +
-    "💜 Cozy Level: **" +
-    level +
-    "%**\n" +
-    "📅 " +
-    displayDate +
-    "\n\n" +
-    "☕ Thank you for being cozy! 💜";
+        const date = new Date(
+            streamDate + "T00:00:00"
+        );
 
-await discordRequest(
-    "/channels/" +
-    TOP_COZY_CHANNEL_ID +
-    "/messages",
-    {
-        method: "POST",
+        const formattedDate =
+            date.toLocaleDateString(
+                "en-US",
+                {
+                    month: "long",
+                    day: "numeric",
+                    year: "numeric"
+                }
+            );
 
-        body: JSON.stringify({
+        await channel.send({
             embeds: [
                 {
                     title: "🧸 TOP COZY!",
-                    description: description
+                    description:
+                        `✨ **${username}** was today's Top Cozy!\n\n` +
+                        `💜 Cozy Level: **${cozyLevel}%**\n` +
+                        `📅 ${formattedDate}\n\n` +
+                        `☕ Thank you for being cozy! 💜`,
+                    color: 0xC084FC
                 }
             ]
-        })
-    }
-);
-
-
-}
-
-// ======================================================
-// DISCORD GATEWAY
-// ======================================================
-
-function stopHeartbeat() {
-
-
-if (heartbeatTimer) {
-    clearTimeout(heartbeatTimer);
-    heartbeatTimer = null;
-}
-
-if (heartbeatInterval) {
-    clearInterval(heartbeatInterval);
-    heartbeatInterval = null;
-}
-
-
-}
-
-function sendHeartbeat() {
-
-
-if (
-    !discordSocket ||
-    discordSocket.readyState !== WebSocket.OPEN
-) {
-    return;
-}
-
-discordSocket.send(
-    JSON.stringify({
-        op: 1,
-        d: sequenceNumber
-    })
-);
-
-
-}
-
-function startHeartbeat(interval) {
-
-
-stopHeartbeat();
-
-heartbeatInterval =
-    setInterval(
-        sendHeartbeat,
-        interval
-    );
-
-sendHeartbeat();
-
-
-}
-
-function identifyDiscord() {
-
-
-if (
-    !discordSocket ||
-    discordSocket.readyState !== WebSocket.OPEN
-) {
-    return;
-}
-
-console.log(
-    "🔐 Sending Discord Gateway IDENTIFY..."
-);
-
-discordSocket.send(
-    JSON.stringify({
-        op: 2,
-
-        d: {
-            token: DISCORD_TOKEN,
-
-            intents:
-                (1 << 0) |
-                (1 << 9) |
-                (1 << 15),
-
-            properties: {
-                os: "linux",
-                browser: "cozy-bot",
-                device: "cozy-bot"
-            }
-        }
-    })
-);
-
-
-}
-
-function scheduleReconnect() {
-
-
-if (reconnectTimer) {
-    return;
-}
-
-reconnectAttempts++;
-
-const delay =
-    Math.min(
-        30000,
-        2000 *
-        Math.pow(
-            2,
-            Math.min(
-                reconnectAttempts - 1,
-                4
-            )
-        )
-    );
-
-console.log(
-    "🟡 Discord reconnect scheduled in " +
-    delay +
-    "ms"
-);
-
-reconnectTimer =
-    setTimeout(
-        function () {
-
-            reconnectTimer = null;
-
-            connectDiscordGateway();
-
-        },
-        delay
-    );
-
-
-}
-
-function connectDiscordGateway() {
-
-
-if (
-    discordSocket &&
-    (
-        discordSocket.readyState ===
-            WebSocket.OPEN ||
-        discordSocket.readyState ===
-            WebSocket.CONNECTING
-    )
-) {
-    return;
-}
-
-console.log(
-    "🚀 Connecting directly to Discord Gateway..."
-);
-
-discordReady = false;
-
-discordSocket =
-    new WebSocket(
-        "wss://gateway.discord.gg/?v=10&encoding=json"
-    );
-
-discordSocket.on(
-    "open",
-    function () {
+        });
 
         console.log(
-            "🟢 DISCORD GATEWAY WEBSOCKET OPEN."
+            "✅ Top Cozy message sent to Discord."
         );
 
-        reconnectAttempts = 0;
-    }
-);
+        return true;
 
-discordSocket.on(
-    "message",
-    function (data) {
-
-        try {
-
-            const packet =
-                JSON.parse(
-                    data.toString()
-                );
-
-            if (
-                packet.s !== null &&
-                packet.s !== undefined
-            ) {
-                sequenceNumber =
-                    packet.s;
-            }
-
-            console.log(
-                "🔎 Discord Gateway OP:",
-                packet.op
-            );
-
-            if (packet.op === 10) {
-
-                console.log(
-                    "🟢 DISCORD GATEWAY HELLO RECEIVED."
-                );
-
-                startHeartbeat(
-                    packet.d.heartbeat_interval
-                );
-
-                identifyDiscord();
-
-                return;
-            }
-
-            if (packet.op === 0) {
-
-                if (
-                    packet.t ===
-                    "READY"
-                ) {
-
-                    discordReady = true;
-
-                    console.log(
-                        "🟢 DISCORD GATEWAY READY."
-                    );
-
-                    console.log(
-                        "🧸 Cozy Bot ONLINE as " +
-                        (
-                            packet.d.user.username +
-                            "#" +
-                            packet.d.user.discriminator
-                        )
-                    );
-
-                    console.log(
-                        "🧸 Discord User ID:",
-                        packet.d.user.id
-                    );
-
-                    console.log(
-                        "🟢 DISCORD GATEWAY CONNECTION SUCCESSFUL."
-                    );
-
-                    return;
-                }
-            }
-
-            if (packet.op === 11) {
-
-                console.log(
-                    "💓 Discord Gateway heartbeat acknowledged."
-                );
-
-                return;
-            }
-
-            if (packet.op === 7) {
-
-                console.log(
-                    "🔄 Discord requested reconnect."
-                );
-
-                if (discordSocket) {
-                    discordSocket.close();
-                }
-
-                return;
-            }
-
-            if (packet.op === 9) {
-
-                console.error(
-                    "❌ Discord Gateway invalid session."
-                );
-
-                discordReady = false;
-
-                if (discordSocket) {
-                    discordSocket.close();
-                }
-
-                return;
-            }
-
-        } catch (error) {
-
-            console.error(
-                "❌ Discord Gateway message error:",
-                error
-            );
-        }
-    }
-);
-
-discordSocket.on(
-    "error",
-    function (error) {
+    } catch (error) {
 
         console.error(
-            "❌ DISCORD GATEWAY WEBSOCKET ERROR:",
-            error.message
-        );
-    }
-);
-
-discordSocket.on(
-    "close",
-    function (
-        code,
-        reason
-    ) {
-
-        console.log(
-            "🔴 DISCORD GATEWAY CLOSED:",
-            code,
-            reason
-                ? reason.toString()
-                : ""
+            "❌ Failed to send Top Cozy message:",
+            error
         );
 
-        discordReady = false;
-
-        stopHeartbeat();
-
-        scheduleReconnect();
+        return false;
     }
-);
-
-
 }
 
-// ======================================================
-// WEB SERVER
-// ======================================================
-
-app.get(
-"/",
-function (req, res) {
-
-
-    res.send(
-        "🧸 Cozy Bot is awake!"
-    );
-}
-
-
-);
-
-// ======================================================
+// --------------------------------------------------
 // COZY WEBHOOK
-// ======================================================
+// --------------------------------------------------
 
-app.post(
-"/cozy",
-async function (req, res) {
-
-
-    console.log(
-        "🧸 COZY POST RECEIVED:",
-        {
-            username:
-                req.body.username,
-
-            cozyLevel:
-                req.body.cozyLevel,
-
-            secret:
-                "[hidden]"
-        }
-    );
+app.post("/cozy", async (req, res) => {
 
     try {
 
-        const username =
-            req.body.username;
+        console.log(
+            "🧸 COZY POST RECEIVED:",
+            {
+                username: req.body.username,
+                cozyLevel: req.body.cozyLevel,
+                secret: req.body.secret
+                    ? "[hidden]"
+                    : undefined
+            }
+        );
 
-        const cozyLevel =
-            req.body.cozyLevel;
-
-        const secret =
-            req.body.secret;
-
-        const receivedSecret =
-            String(secret || "")
-                .replace(/\r/g, "")
-                .replace(/\n/g, "")
-                .trim();
-
-        const savedSecret =
-            String(
-                COZY_WEBHOOK_SECRET || ""
-            )
-                .replace(/\r/g, "")
-                .replace(/\n/g, "")
-                .trim();
-
-        if (!savedSecret) {
-
-            return res.status(500).json({
-                success: false,
-                error:
-                    "Server secret is not configured"
-            });
-        }
+        // ------------------------------------------
+        // CHECK SECRET
+        // ------------------------------------------
 
         if (
-            receivedSecret !==
-            savedSecret
+            !req.body.secret ||
+            req.body.secret !== COZY_WEBHOOK_SECRET
         ) {
 
             console.log(
-                "❌ Cozy secret rejected."
+                "❌ Invalid Cozy secret."
             );
 
             return res.status(401).json({
                 success: false,
-                error: "Unauthorized"
+                message: "Invalid secret."
             });
         }
 
@@ -596,39 +187,66 @@ async function (req, res) {
             "✅ Cozy secret accepted."
         );
 
-        const cleanName =
-            cleanUsername(username);
+        // ------------------------------------------
+        // CLEAN USERNAME
+        // ------------------------------------------
 
-        const level =
-            validCozyLevel(
-                cozyLevel
+        const username =
+            String(
+                req.body.username || ""
+            ).trim();
+
+        // ------------------------------------------
+        // CLEAN COZY LEVEL
+        // ------------------------------------------
+
+        const cozyLevel =
+            Number(
+                req.body.cozyLevel
             );
 
-        if (!cleanName) {
+        // ------------------------------------------
+        // VALIDATE DATA
+        // ------------------------------------------
+
+        if (!username) {
 
             return res.status(400).json({
                 success: false,
-                error:
-                    "Missing username"
+                message: "Username is required."
             });
         }
 
-        if (level === null) {
+        if (
+            !Number.isInteger(cozyLevel) ||
+            cozyLevel < 0 ||
+            cozyLevel > 100
+        ) {
 
             return res.status(400).json({
                 success: false,
-                error:
-                    "Invalid cozy level"
+                message:
+                    "Cozy level must be a whole number from 0 to 100."
             });
         }
+
+        // ------------------------------------------
+        // USE TODAY'S DATE
+        // ------------------------------------------
 
         const streamDate =
-            getToday();
+            new Date()
+                .toISOString()
+                .slice(0, 10);
+
+        // ------------------------------------------
+        // SAVE TO DATABASE
+        // ------------------------------------------
 
         const saveResult =
             await saveCozy(
-                cleanName,
-                level,
+                username,
+                cozyLevel,
                 streamDate
             );
 
@@ -639,347 +257,351 @@ async function (req, res) {
 
         if (!saveResult.row) {
 
-            throw new Error(
-                "Could not save or find Cozy result."
-            );
+            return res.status(500).json({
+                success: false,
+                message:
+                    "Could not save or find Cozy record."
+            });
         }
 
-        const cozyRecord =
-            saveResult.row;
+        const recordId =
+            saveResult.row.id;
+
+        console.log(
+            "🧸 Cozy record ID:",
+            recordId
+        );
+
+        // ------------------------------------------
+        // DON'T POST TWICE
+        // ------------------------------------------
 
         if (
-            cozyRecord.discord_posted
+            saveResult.row.discord_posted
         ) {
+
+            console.log(
+                "ℹ️ Discord already posted."
+            );
 
             return res.json({
                 success: true,
                 duplicate: true,
-                alreadyPosted: true,
-                username:
-                    cozyRecord.username,
-                cozyLevel:
-                    cozyRecord.cozy_level,
                 message:
-                    "This Cozy result was already posted today."
+                    "This Cozy result was already posted."
             });
         }
 
-        if (!discordReady) {
+        // ------------------------------------------
+        // MAKE SURE DISCORD IS ONLINE
+        // ------------------------------------------
+
+        if (!client.isReady()) {
 
             console.log(
-                "⚠️ Discord Gateway is not ready."
+                "❌ Discord bot is not ready."
             );
 
             return res.status(503).json({
                 success: false,
-                error:
-                    "Discord bot is not connected yet."
+                message:
+                    "Cozy Bot is not connected to Discord yet."
             });
         }
 
-        const displayDate =
-            getDisplayDate();
+        // ------------------------------------------
+        // POST TO DISCORD
+        // ------------------------------------------
 
-        console.log(
-            "🧸 Sending Top Cozy message..."
-        );
+        const posted =
+            await sendTopCozyMessage(
+                username,
+                cozyLevel,
+                streamDate
+            );
 
-        await sendTopCozyMessage(
-            cleanName,
-            level,
-            displayDate
-        );
+        if (!posted) {
 
-        console.log(
-            "✅ Top Cozy message sent to Discord!"
-        );
+            return res.status(500).json({
+                success: false,
+                message:
+                    "Cozy was saved, but Discord posting failed."
+            });
+        }
+
+        // ------------------------------------------
+        // MARK AS POSTED
+        // ------------------------------------------
 
         await markDiscordPosted(
-            cozyRecord.id
+            recordId
+        );
+
+        console.log(
+            "✅ Cozy record marked as posted."
         );
 
         return res.json({
             success: true,
-            duplicate:
-                !saveResult.saved,
-            alreadyPosted: false,
-            username:
-                cleanName,
-            cozyLevel:
-                level,
-            date:
-                displayDate
+            duplicate: false,
+            message:
+                "Top Cozy saved and posted to Discord."
         });
 
     } catch (error) {
 
         console.error(
-            "❌ Cozy error:",
+            "❌ /cozy ERROR:",
             error
         );
 
         return res.status(500).json({
             success: false,
-            error:
-                "Server error"
+            message:
+                "Internal Cozy Bot error."
         });
     }
-}
+});
 
-
-);
-
-// ======================================================
+// --------------------------------------------------
 // !MYCOZY
-// ======================================================
+// --------------------------------------------------
 
-async function handleMyCozy(
-message
-) {
+client.on(
+    "messageCreate",
+    async (message) => {
 
+        try {
 
-const content =
-    message.content.trim();
+            if (message.author.bot) {
+                return;
+            }
 
-if (
-    !content
-        .toLowerCase()
-        .startsWith("!mycozy")
-) {
-    return;
-}
+            if (
+                message.content
+                    .trim()
+                    .toLowerCase() !== "!mycozy"
+            ) {
+                return;
+            }
 
-const parts =
-    content.split(/\s+/);
+            const username =
+                message.author.username;
 
-const username =
-    parts.length > 1
-        ? cleanUsername(parts[1])
-        : message.author.username;
+            console.log(
+                `🧸 !mycozy requested by ${username}`
+            );
 
-try {
+            const history =
+                await getCozyHistory(
+                    username
+                );
 
-    const history =
-        await getCozyHistory(
-            username
-        );
+            const winCount =
+                await getCozyWinCount(
+                    username
+                );
 
-    const winCount =
-        await getCozyWinCount(
-            username
-        );
+            // --------------------------------------
+            // NO WINS
+            // --------------------------------------
 
-    if (history.length === 0) {
+            if (
+                !history ||
+                history.length === 0
+            ) {
 
-        await message.reply(
-            "🧸 **" +
-            username +
-            "**, you don't have any Top Cozy wins yet!\n\n" +
-            "☕ Keep hanging out and being cozy! 💜"
-        );
+                return message.reply({
+                    embeds: [
+                        {
+                            title:
+                                `🧸 ${username}'s Cozy History`,
+                            description:
+                                "You don't have any Top Cozy wins yet! ☕💜",
+                            color: 0xC084FC
+                        }
+                    ]
+                });
+            }
 
-        return;
-    }
+            // --------------------------------------
+            // HISTORY
+            // --------------------------------------
 
-    const historyText =
-        history
-            .map(
-                function (entry) {
+            const historyText =
+                history
+                    .map((record) => {
 
-                    const date =
-                        new Date(
-                            entry.stream_date
-                        ).toLocaleDateString(
-                            "en-US",
-                            {
-                                timeZone:
-                                    TIMEZONE,
-                                year:
-                                    "numeric",
-                                month:
-                                    "long",
-                                day:
-                                    "numeric"
-                            }
+                        const date =
+                            new Date(
+                                record.stream_date +
+                                "T00:00:00"
+                            );
+
+                        const formattedDate =
+                            date.toLocaleDateString(
+                                "en-US",
+                                {
+                                    month: "long",
+                                    day: "numeric",
+                                    year: "numeric"
+                                }
+                            );
+
+                        return (
+                            `📅 ${formattedDate} — ` +
+                            `**${record.cozy_level}%**`
                         );
 
-                    return (
-                        "📅 **" +
-                        date +
-                        "** — **" +
-                        entry.cozy_level +
-                        "%**"
-                    );
-                }
-            )
-            .join("\n");
+                    })
+                    .join("\n");
 
-    const text =
-        "🏆 **" +
-        winCount +
-        " Top Cozy " +
-        (
-            winCount === 1
-                ? "win"
-                : "wins"
-        ) +
-        "**\n\n" +
-        historyText +
-        "\n\n" +
-        "☕ Keep being cozy! 💜";
+            // --------------------------------------
+            // SEND HISTORY
+            // --------------------------------------
 
-    await sendDiscordMessageToChannel(
-        message.channelId,
-        {
-            embeds: [
-                {
-                    title:
-                        "🧸 " +
-                        username +
-                        "'s Cozy History",
+            return message.reply({
+                embeds: [
+                    {
+                        title:
+                            `🧸 ${username}'s Cozy History`,
+                        description:
+                            `🏆 **${winCount} Top Cozy win${winCount === 1 ? "" : "s"}**\n\n` +
+                            historyText +
+                            `\n\n☕ Keep being cozy! 💜`,
+                        color: 0xC084FC
+                    }
+                ]
+            });
 
-                    description:
-                        text
-                }
-            ]
+        } catch (error) {
+
+            console.error(
+                "❌ !mycozy ERROR:",
+                error
+            );
         }
-    );
-
-} catch (error) {
-
-    console.error(
-        "❌ !mycozy error:",
-        error
-    );
-}
-
-
-}
-
-async function sendDiscordMessageToChannel(
-channelId,
-body
-) {
-
-
-await discordRequest(
-    "/channels/" +
-    channelId +
-    "/messages",
-    {
-        method: "POST",
-        body:
-            JSON.stringify(body)
     }
 );
 
-
-}
-
-// ======================================================
-// START
-// ======================================================
+// --------------------------------------------------
+// START BOT
+// --------------------------------------------------
 
 async function start() {
 
+    try {
 
-try {
-
-    console.log(
-        "🧸 Starting Cozy Bot..."
-    );
-
-    if (!DISCORD_TOKEN) {
-        throw new Error(
-            "DISCORD_TOKEN is not configured."
+        console.log(
+            "🧸 Starting Cozy Bot..."
         );
-    }
 
-    if (!TOP_COZY_CHANNEL_ID) {
-        throw new Error(
-            "TOP_COZY_CHANNEL_ID is not configured."
-        );
-    }
+        // ------------------------------------------
+        // CHECK ENVIRONMENT
+        // ------------------------------------------
 
-    if (!COZY_WEBHOOK_SECRET) {
-        throw new Error(
-            "COZY_WEBHOOK_SECRET is not configured."
-        );
-    }
+        if (!DISCORD_TOKEN) {
 
-    console.log(
-        "🧸 Initializing database..."
-    );
-
-    await initializeDatabase();
-
-    console.log(
-        "✅ Database initialized."
-    );
-
-    app.listen(
-        PORT,
-        "0.0.0.0",
-        function () {
-
-            console.log(
-                "🧸 Cozy web server running on port " +
-                PORT
+            throw new Error(
+                "DISCORD_TOKEN is not configured."
             );
         }
-    );
 
-    console.log(
-        "🧪 Discord token exists:",
-        Boolean(DISCORD_TOKEN)
-    );
+        if (!TOP_COZY_CHANNEL_ID) {
 
-    console.log(
-        "🧪 Discord token length:",
-        DISCORD_TOKEN.trim().length
-    );
+            throw new Error(
+                "TOP_COZY_CHANNEL_ID is not configured."
+            );
+        }
 
-    console.log(
-        "🔐 Testing Discord API authentication..."
-    );
+        if (!COZY_WEBHOOK_SECRET) {
 
-    const botUser =
-        await discordRequest(
-            "/users/@me"
+            throw new Error(
+                "COZY_WEBHOOK_SECRET is not configured."
+            );
+        }
+
+        // ------------------------------------------
+        // DATABASE
+        // ------------------------------------------
+
+        console.log(
+            "🧸 Initializing database..."
         );
 
-    console.log(
-        "✅ Discord token accepted."
-    );
+        await initializeDatabase();
 
-    console.log(
-        "🧸 Discord bot user ID:",
-        botUser.id
-    );
+        console.log(
+            "✅ Database initialized."
+        );
 
-    console.log("🚀 Connecting Cozy Bot to Discord...");
+        // ------------------------------------------
+        // WEB SERVER
+        // ------------------------------------------
 
-client.login(DISCORD_TOKEN)
-    .then(() => {
-        console.log("🟢 Discord login() completed.");
-    })
-    .catch((error) => {
-        console.error("❌ Discord login() failed:", error);
-    });
+        app.listen(
+            PORT,
+            "0.0.0.0",
+            () => {
 
-console.log("🔵 Discord login() was called.");
+                console.log(
+                    "🧸 Cozy web server running on port " +
+                    PORT
+                );
 
-} catch (error) {
+            }
+        );
 
-    console.error(
-        "❌ Failed to start Cozy Bot:",
-        error
-    );
+        // ------------------------------------------
+        // DISCORD LOGIN
+        // ------------------------------------------
 
-    process.exit(1);
-}
+        console.log(
+            "🚀 Connecting Cozy Bot to Discord..."
+        );
 
+        console.log(
+            "🧪 Discord token exists:",
+            Boolean(DISCORD_TOKEN)
+        );
 
+        console.log(
+            "🧪 Discord token length:",
+            DISCORD_TOKEN.trim().length
+        );
+
+        client.login(
+            DISCORD_TOKEN
+        )
+        .then(() => {
+
+            console.log(
+                "🟢 Discord login() completed."
+            );
+
+        })
+        .catch((error) => {
+
+            console.error(
+                "❌ Discord login() failed:",
+                error
+            );
+
+        });
+
+        console.log(
+            "🔵 Discord login() was called."
+        );
+
+    } catch (error) {
+
+        console.error(
+            "❌ Failed to start Cozy Bot:",
+            error
+        );
+
+        process.exit(1);
+    }
 }
 
 start();

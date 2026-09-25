@@ -1,3 +1,4 @@
+```js
 require("dotenv").config();
 
 const express = require("express");
@@ -308,13 +309,9 @@ app.post("/cozy", async function (req, res) {
             TOP_COZY_CHANNEL_ID
         );
 
-        if (!TOP_COZY_CHANNEL_ID) {
-            throw new Error(
-                "TOP_COZY_CHANNEL_ID is not configured."
-            );
-        }
-
-        if (!client.isReady()) {
+        // ONLY CHANGE:
+        // Discord's WebSocket shard READY status is 3.
+        if (client.ws.status !== 3) {
             console.log(
                 "⚠️ Discord client is NOT ready yet."
             );
@@ -578,34 +575,6 @@ client.once(
 
 
 // ======================================================
-// GATEWAY STATUS MONITOR
-// ======================================================
-
-const gatewayStatusMonitor =
-    setInterval(function () {
-
-        if (!client.isReady()) {
-
-            console.log(
-                "🧪 Discord Gateway status:",
-                client.ws.status
-            );
-
-        } else {
-
-            console.log(
-                "🟢 Discord Gateway status: READY"
-            );
-
-            clearInterval(
-                gatewayStatusMonitor
-            );
-        }
-
-    }, 10000);
-
-
-// ======================================================
 // START
 // ======================================================
 
@@ -697,3 +666,4 @@ async function start() {
 }
 
 start();
+```

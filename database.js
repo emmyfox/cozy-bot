@@ -15,8 +15,14 @@ async function initializeDatabase() {
             cozy_level INTEGER NOT NULL,
             stream_date DATE NOT NULL,
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            discord_posted BOOLEAN NOT NULL DEFAULT FALSE,
             UNIQUE(username, stream_date)
         )
+    `);
+
+    await pool.query(`
+        ALTER TABLE cozy_history
+        ADD COLUMN IF NOT EXISTS discord_posted BOOLEAN NOT NULL DEFAULT FALSE
     `);
 
     console.log("🧸 Cozy database ready!");
@@ -30,12 +36,44 @@ async function saveCozy(username, cozyLevel, streamDate) {
         VALUES ($1, $2, $3)
         ON CONFLICT (username, stream_date)
         DO NOTHING
-        RETURNING id
+        RETURNING id, username, cozy_level, stream_date, discord_posted
         `,
         [username, cozyLevel, streamDate]
     );
 
-    return result.rowCount > 0;
+    if (result.rowCount > 0) {
+        return {
+            saved: true,
+            row: result.rows[0]
+        };
+    }
+
+    const existing = await pool.query(
+        `
+        SELECT id, username, cozy_level, stream_date, discord_posted
+        FROM cozy_history
+        WHERE LOWER(username) = LOWER($1)
+        AND stream_date = $2
+        LIMIT 1
+        `,
+        [username, streamDate]
+    );
+
+    return {
+        saved: false,
+        row: existing.rows[0] || null
+    };
+}
+
+async function markDiscordPosted(id) {
+    await pool.query(
+        `
+        UPDATE cozy_history
+        SET discord_posted = TRUE
+        WHERE id = $1
+        `,
+        [id]
+    );
 }
 
 async function getCozyHistory(username) {
@@ -69,6 +107,7 @@ module.exports = {
     pool,
     initializeDatabase,
     saveCozy,
+    markDiscordPosted,
     getCozyHistory,
     getCozyWinCount
 };

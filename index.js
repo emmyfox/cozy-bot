@@ -60,11 +60,6 @@ client.on("warn", (warning) => {
     );
 });
 
-client.on("debug", (info) => {
-    console.log(
-        "🔎 DISCORD DEBUG:",
-        info
-    );
 });
 
 // --------------------------------------------------

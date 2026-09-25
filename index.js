@@ -578,6 +578,34 @@ client.once(
 
 
 // ======================================================
+// GATEWAY STATUS MONITOR
+// ======================================================
+
+const gatewayStatusMonitor =
+    setInterval(function () {
+
+        if (!client.isReady()) {
+
+            console.log(
+                "🧪 Discord Gateway status:",
+                client.ws.status
+            );
+
+        } else {
+
+            console.log(
+                "🟢 Discord Gateway status: READY"
+            );
+
+            clearInterval(
+                gatewayStatusMonitor
+            );
+        }
+
+    }, 10000);
+
+
+// ======================================================
 // START
 // ======================================================
 

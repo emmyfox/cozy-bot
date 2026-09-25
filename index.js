@@ -42,9 +42,9 @@ console.log("🔎 DISCORD DEBUG: Token information hidden.");
 return;
 }
 
-```
+
 console.log("🔎 DISCORD DEBUG:", info);
-```
+
 
 });
 
@@ -89,14 +89,9 @@ console.error(
 // ENVIRONMENT VARIABLES
 // ======================================================
 
-const TOP_COZY_CHANNEL_ID =
-process.env.TOP_COZY_CHANNEL_ID;
-
-const COZY_WEBHOOK_SECRET =
-process.env.COZY_WEBHOOK_SECRET;
-
-const TIMEZONE =
-process.env.TIMEZONE || "America/New_York";
+const TOP_COZY_CHANNEL_ID = process.env.TOP_COZY_CHANNEL_ID;
+const COZY_WEBHOOK_SECRET = process.env.COZY_WEBHOOK_SECRET;
+const TIMEZONE = process.env.TIMEZONE || "America/New_York";
 
 // ======================================================
 // HELPER FUNCTIONS
@@ -111,7 +106,7 @@ return String(username || "")
 function validCozyLevel(level) {
 const number = Number(level);
 
-```
+
 if (!Number.isFinite(number)) {
     return null;
 }
@@ -121,7 +116,7 @@ if (number < 0 || number > 100) {
 }
 
 return Math.round(number);
-```
+
 
 }
 
@@ -165,23 +160,21 @@ secret: "[hidden]"
 }
 );
 
-```
+
 try {
     const username = req.body.username;
     const cozyLevel = req.body.cozyLevel;
     const secret = req.body.secret;
 
-    const receivedSecret =
-        String(secret || "")
-            .replace(/\r/g, "")
-            .replace(/\n/g, "")
-            .trim();
+    const receivedSecret = String(secret || "")
+        .replace(/\r/g, "")
+        .replace(/\n/g, "")
+        .trim();
 
-    const savedSecret =
-        String(COZY_WEBHOOK_SECRET || "")
-            .replace(/\r/g, "")
-            .replace(/\n/g, "")
-            .trim();
+    const savedSecret = String(COZY_WEBHOOK_SECRET || "")
+        .replace(/\r/g, "")
+        .replace(/\n/g, "")
+        .trim();
 
     console.log(
         "🔐 Received secret length:",
@@ -224,11 +217,8 @@ try {
         "✅ Cozy secret accepted."
     );
 
-    const cleanName =
-        cleanUsername(username);
-
-    const level =
-        validCozyLevel(cozyLevel);
+    const cleanName = cleanUsername(username);
+    const level = validCozyLevel(cozyLevel);
 
     if (!cleanName) {
         console.log(
@@ -252,15 +242,13 @@ try {
         });
     }
 
-    const streamDate =
-        getToday();
+    const streamDate = getToday();
 
-    const saveResult =
-        await saveCozy(
-            cleanName,
-            level,
-            streamDate
-        );
+    const saveResult = await saveCozy(
+        cleanName,
+        level,
+        streamDate
+    );
 
     console.log(
         "🧸 Cozy save result:",
@@ -273,8 +261,7 @@ try {
         );
     }
 
-    const cozyRecord =
-        saveResult.row;
+    const cozyRecord = saveResult.row;
 
     console.log(
         "🧸 Cozy record ID:",
@@ -313,7 +300,6 @@ try {
         );
     }
 
-    // Discord WebSocket shard READY status is 3.
     if (client.ws.status !== 3) {
         console.log(
             "⚠️ Discord client is NOT ready yet."
@@ -346,8 +332,7 @@ try {
         channel.name
     );
 
-    const displayDate =
-        getDisplayDate();
+    const displayDate = getDisplayDate();
 
     const description =
         "✨ **" +
@@ -411,7 +396,7 @@ try {
         error: "Server error"
     });
 }
-```
+
 
 });
 
@@ -423,7 +408,7 @@ client.on(
 "messageCreate",
 async function (message) {
 
-```
+
     if (message.author.bot) {
         return;
     }
@@ -546,7 +531,7 @@ async function (message) {
         );
     }
 }
-```
+
 
 );
 
@@ -558,7 +543,7 @@ client.once(
 "ready",
 function () {
 
-```
+
     console.log(
         "🧸 Cozy Bot ONLINE as " +
         client.user.tag
@@ -578,7 +563,7 @@ function () {
         "🟢 DISCORD GATEWAY CONNECTION SUCCESSFUL."
     );
 }
-```
+
 
 );
 
@@ -588,7 +573,7 @@ function () {
 
 async function start() {
 
-```
+
 try {
 
     console.log(
@@ -672,7 +657,7 @@ try {
 
     process.exit(1);
 }
-```
+
 
 }
 

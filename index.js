@@ -122,19 +122,19 @@ client.once('ready', () => {
     console.log(`🚀 Logged in as ${client.user.tag}!`);
 });
 
-// Startup sequence - ensures Discord connects before opening the web server
+// Startup sequence - starts web server immediately for Render port binding, then logs into Discord
 async function startBot() {
     console.log("🧸 Starting Cozy Bot...");
     console.log("🧸 Initializing database...");
     await initializeDatabase();
     console.log("✅ Database initialized.");
 
-    console.log("🚀 Connecting Cozy Bot to Discord client...");
-    await client.login(DISCORD_TOKEN);
-
     app.listen(PORT, () => {
         console.log(`🧸 Cozy web server running on port ${PORT}`);
     });
+
+    console.log("🚀 Connecting Cozy Bot to Discord client...");
+    await client.login(DISCORD_TOKEN);
 }
 
 startBot().catch(err => {

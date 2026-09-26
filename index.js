@@ -1,6 +1,6 @@
 require('dotenv').config();
 const express = require('express');
-const { initializeDatabase, saveCozy, markDiscordPosted, getCozyHistory, getCozyWinCount } = require('./database');
+const { initializeDatabase, saveCozy, markDiscordPosted } = require('./database');
 
 const app = express();
 app.use(express.json());
@@ -9,7 +9,7 @@ const PORT = process.env.PORT || 10000;
 const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL;
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || "98hasbdjmsnmcde";
 
-// Send Top Cozy directly via Discord Webhook (bypasses gateway blocks on Render)
+// Send Top Cozy via Discord Webhook URL (bypasses Cloudflare limits)
 async function sendDiscordWebhookMessage(username, cozyLevel, streamDate) {
     try {
         if (!DISCORD_WEBHOOK_URL) {
@@ -97,7 +97,6 @@ app.get('/', (req, res) => {
     res.send('🧸 Cozy Bot webhook server is running!');
 });
 
-// Startup sequence
 async function startBot() {
     console.log("🧸 Starting Cozy Bot...");
     console.log("🧸 Initializing database...");

@@ -141,7 +141,6 @@ async function startBot() {
     console.log("🧸 Starting Cozy Bot...");
     console.log("🧸 Initializing database...");
     
-    // Await database creation completely BEFORE starting the web server or Discord bot
     await initializeDatabase();
     console.log("✅ Database initialized successfully.");
 

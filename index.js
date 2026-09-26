@@ -23,6 +23,15 @@ const client = new Client({
 // Send Top Cozy via the active Discord client channel cache (bypasses Cloudflare REST rate limits)
 async function sendDiscordWebhookMessage(username, cozyLevel, streamDate) {
     try {
+        // Ensure Discord client is fully ready and connected
+        if (!client.isReady()) {
+            console.log("⏳ Waiting for Discord client to be fully ready...");
+            await new Promise(resolve => {
+                if (client.isReady()) resolve();
+                else client.once('ready', resolve);
+            });
+        }
+
         const date = new Date(streamDate + "T00:00:00");
         const formattedDate = date.toLocaleDateString("en-US", {
             month: "long",
@@ -30,6 +39,7 @@ async function sendDiscordWebhookMessage(username, cozyLevel, streamDate) {
             year: "numeric"
         });
 
+        console.log(`🔍 Fetching Discord channel ID: ${TOP_COZY_CHANNEL_ID}`);
         const channel = await client.channels.fetch(TOP_COZY_CHANNEL_ID);
         if (!channel) {
             throw new Error(`Could not find Discord channel with ID ${TOP_COZY_CHANNEL_ID}`);
@@ -76,7 +86,6 @@ app.post('/cozy', async (req, res) => {
         const { row, inserted } = await saveCozy(username, parsedCozyLevel, streamDate);
         console.log("📊 DB Result -> Inserted:", inserted, "| Row:", row);
 
-        // For testing convenience: post to Discord if it's new OR if it hasn't been posted to Discord yet
         if (row && row.discord_posted === 0) {
             console.log("📤 Attempting to post to Discord...");
             const posted = await sendDiscordWebhookMessage(username, parsedCozyLevel, streamDate);

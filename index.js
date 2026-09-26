@@ -593,23 +593,29 @@ async function start() {
             DISCORD_TOKEN.trim().length
         );
 
-        client.login(
-            DISCORD_TOKEN
-        )
-        .then(() => {
+        let loginCompleted = false;
 
+        setTimeout(() => {
+            if (!loginCompleted && !client.isReady()) {
+                console.warn(
+                    "⚠️ WARNING: Discord login is taking longer than expected. Render network may be throttling the gateway websocket."
+                );
+            }
+        }, 10000);
+
+        client.login(DISCORD_TOKEN.trim())
+        .then(() => {
+            loginCompleted = true;
             console.log(
                 "🟢 Discord login() completed."
             );
-
         })
         .catch((error) => {
-
+            loginCompleted = true;
             console.error(
                 "❌ Discord login() failed:",
                 error
             );
-
         });
 
         console.log(

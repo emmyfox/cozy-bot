@@ -1,7 +1,7 @@
 require("dotenv").config();
 const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
-const https = require('https'); // Added for self-ping
+const https = require('https'); // For self-ping keep-alive
 
 const app = express();
 app.use(express.json());
@@ -78,16 +78,21 @@ app.post('/cozy', (req, res) => {
 });
 
 app.post('/top-cozy', (req, res) => {
-    const { winnerName, score } = req.body;
-    if (!winnerName) {
-        return res.status(400).json({ error: 'Missing winnerName' });
+    const { username, cozyLevel, secret } = req.body;
+    
+    if (secret !== "98hasbdjmsnmcde") {
+        return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    saveDailyWinner(winnerName, score || 'N/A', (err, date) => {
+    if (!username) {
+        return res.status(400).json({ error: 'Missing username' });
+    }
+
+    saveDailyWinner(username, cozyLevel || 'N/A', (err, date) => {
         if (err) {
             return res.status(500).json({ error: err.message });
         }
-        res.json({ success: true, date, winnerName });
+        res.json({ success: true, date, username, cozyLevel });
     });
 });
 

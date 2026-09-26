@@ -1,38 +1,20 @@
 require('dotenv').config();
 const express = require('express');
-const { Client, GatewayIntentBits } = require('discord.js');
 const { initializeDatabase, saveCozy, markDiscordPosted, getCozyHistory, getCozyWinCount } = require('./database');
 
 const app = express();
 app.use(express.json());
 
 const PORT = process.env.PORT || 10000;
-const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
-const TOP_COZY_CHANNEL_ID = process.env.TOP_COZY_CHANNEL_ID;
+const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL;
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || "98hasbdjmsnmcde";
 
-// Initialize Discord Client with necessary intents
-const client = new Client({
-    intents: [
-        GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent
-    ]
-});
-
-// Send Top Cozy via the active Discord client channel cache (bypasses Cloudflare REST rate limits)
+// Send Top Cozy directly via Discord Webhook (bypasses gateway blocks on Render)
 async function sendDiscordWebhookMessage(username, cozyLevel, streamDate) {
     try {
-        // If client is not ready or user isn't populated yet, wait briefly for the ready event
-        if (!client.isReady() || !client.user) {
-            console.log("⏳ Waiting for Discord client ready event...");
-            await new Promise((resolve) => {
-                if (client.isReady() && client.user) {
-                    resolve();
-                } else {
-                    client.once('ready', resolve);
-                }
-            });
+        if (!DISCORD_WEBHOOK_URL) {
+            console.error("❌ DISCORD_WEBHOOK_URL environment variable is missing!");
+            return false;
         }
 
         const date = new Date(streamDate + "T00:00:00");
@@ -42,13 +24,7 @@ async function sendDiscordWebhookMessage(username, cozyLevel, streamDate) {
             year: "numeric"
         });
 
-        console.log(`🔍 Fetching Discord channel ID: ${TOP_COZY_CHANNEL_ID}`);
-        const channel = await client.channels.fetch(TOP_COZY_CHANNEL_ID);
-        if (!channel) {
-            throw new Error(`Could not find Discord channel with ID ${TOP_COZY_CHANNEL_ID}`);
-        }
-
-        await channel.send({
+        const payload = {
             embeds: [
                 {
                     title: "🧸 TOP COZY!",
@@ -60,9 +36,20 @@ async function sendDiscordWebhookMessage(username, cozyLevel, streamDate) {
                     color: 0xC084FC
                 }
             ]
+        };
+
+        const response = await fetch(DISCORD_WEBHOOK_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
         });
 
-        console.log("✅ Top Cozy message posted to Discord via bot client.");
+        if (!response.ok) {
+            const errText = await response.text();
+            throw new Error(`Discord webhook responded with status ${response.status}: ${errText}`);
+        }
+
+        console.log("✅ Top Cozy message posted to Discord via Webhook.");
         return true;
     } catch (error) {
         console.error("❌ Failed to post Discord message:", error);
@@ -90,7 +77,7 @@ app.post('/cozy', async (req, res) => {
         console.log("📊 DB Result -> Inserted:", inserted, "| Row:", row);
 
         if (row && row.discord_posted === 0) {
-            console.log("📤 Attempting to post to Discord...");
+            console.log("📤 Attempting to post to Discord via Webhook...");
             const posted = await sendDiscordWebhookMessage(username, parsedCozyLevel, streamDate);
             if (posted) {
                 await markDiscordPosted(row.id);
@@ -110,35 +97,6 @@ app.get('/', (req, res) => {
     res.send('🧸 Cozy Bot webhook server is running!');
 });
 
-// Discord message listener for !mycozy command
-client.on('messageCreate', async (message) => {
-    if (message.author.bot) return;
-
-    if (message.content.startsWith('!mycozy')) {
-        try {
-            const username = message.author.username;
-            const winCount = await getCozyWinCount(username);
-            const history = await getCozyHistory(username);
-
-            let reply = `☕ **${username}'s Cozy Stats:**\nTotal Top Cozy Wins: **${winCount}**`;
-            if (history && history.length > 0) {
-                reply += `\n\nRecent History:\n` + history.map(h => `• ${h.stream_date}: ${h.cozy_level}%`).join('\n');
-            } else {
-                reply += `\n\nNo recorded wins yet. Get cozy on stream!`;
-            }
-
-            await message.reply(reply);
-        } catch (err) {
-            console.error("❌ Error handling !mycozy command:", err);
-            await message.reply("Oops! Something went wrong fetching your cozy stats.");
-        }
-    }
-});
-
-client.once('ready', () => {
-    console.log(`🚀 Logged in as ${client.user.tag}!`);
-});
-
 // Startup sequence
 async function startBot() {
     console.log("🧸 Starting Cozy Bot...");
@@ -149,9 +107,6 @@ async function startBot() {
     app.listen(PORT, () => {
         console.log(`🧸 Cozy web server running on port ${PORT}`);
     });
-
-    console.log("🚀 Connecting Cozy Bot to Discord client...");
-    await client.login(DISCORD_TOKEN);
 }
 
 startBot().catch(err => {

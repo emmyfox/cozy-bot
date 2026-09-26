@@ -8,7 +8,6 @@ app.use(express.json());
 const PORT = process.env.PORT || 10000;
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || "98hasbdjmsnmcde";
 
-// Webhook endpoint to record daily stream winner from Mix It Up
 app.post('/cozy', async (req, res) => {
     try {
         console.log("🧸 COZY POST RECEIVED:", req.body);
@@ -34,12 +33,10 @@ app.post('/cozy', async (req, res) => {
     }
 });
 
-// Endpoint to fetch formatted win history for Discord/Twitch
 app.get('/cozy/history/:username', async (req, res) => {
     try {
         let username = req.params.username.toLowerCase();
         
-        // Clean fallback if variable didn't evaluate
         if (!username || username === '$user' \vert{}\vert{} username.includes('$')) {
             username = 'mcdemil';
         }

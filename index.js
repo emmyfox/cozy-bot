@@ -39,9 +39,14 @@ app.get('/cozy/history/:username', async (req, res) => {
     try {
         let username = req.params.username.toLowerCase();
         
-        // If Mix It Up didn't evaluate $user, default to your streamer name
+        // Clean fallback if variable didn't evaluate
         if (!username || username === '$user' \vert{}\vert{} username.includes('$')) {
             username = 'mcdemil';
+        }
+        
+        if (!db) {
+            console.error("❌ Database connection not initialized.");
+            return res.send(`✨ @${username}, database connection is starting up, try again in a moment!`);
         }
         
         db.all(
@@ -49,7 +54,7 @@ app.get('/cozy/history/:username', async (req, res) => {
             [username],
             (err, rows) => {
                 if (err) {
-                    console.error("❌ DB Error:", err);
+                    console.error("❌ DB Query Error:", err);
                     return res.send(`✨ @${username}, you don't have any Top Cozy wins recorded yet!`);
                 }
 

@@ -74,12 +74,17 @@ app.post('/cozy', async (req, res) => {
 
         const streamDate = new Date().toISOString().split('T')[0];
         const { row, inserted } = await saveCozy(username, parsedCozyLevel, streamDate);
+        console.log("📊 DB Result -> Inserted:", inserted, "| Row:", row);
 
-        if (inserted && row.discord_posted === 0) {
+        // For testing convenience: post to Discord if it's new OR if it hasn't been posted to Discord yet
+        if (row && row.discord_posted === 0) {
+            console.log("📤 Attempting to post to Discord...");
             const posted = await sendDiscordWebhookMessage(username, parsedCozyLevel, streamDate);
             if (posted) {
                 await markDiscordPosted(row.id);
             }
+        } else {
+            console.log("⏩ Skipping Discord post: Already marked as posted for today.");
         }
 
         res.json({ success: true, message: "Cozy win recorded successfully.", data: row });
@@ -122,7 +127,7 @@ client.once('ready', () => {
     console.log(`🚀 Logged in as ${client.user.tag}!`);
 });
 
-// Startup sequence - starts web server immediately for Render port binding, then logs into Discord
+// Startup sequence
 async function startBot() {
     console.log("🧸 Starting Cozy Bot...");
     console.log("🧸 Initializing database...");

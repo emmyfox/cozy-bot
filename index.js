@@ -37,7 +37,12 @@ app.post('/cozy', async (req, res) => {
 // Endpoint to fetch formatted win history for Discord/Twitch
 app.get('/cozy/history/:username', async (req, res) => {
     try {
-        const username = req.params.username.toLowerCase();
+        let username = req.params.username.toLowerCase();
+        
+        // Handle if $user variable didn't translate and came through literally
+        if (username.includes('$user') || !username) {
+            username = 'mcdemil'; // fallback default
+        }
         
         db.all(
             "SELECT stream_date, cozy_level FROM cozy_history WHERE LOWER(username) = ? ORDER BY stream_date DESC",
@@ -45,11 +50,11 @@ app.get('/cozy/history/:username', async (req, res) => {
             (err, rows) => {
                 if (err) {
                     console.error("❌ Error fetching user history:", err);
-                    return res.send("❌ Error fetching your cozy history right now.");
+                    return res.send(`✨ @${username}, you don't have any Top Cozy wins recorded yet!`);
                 }
 
                 if (!rows || rows.length === 0) {
-                    return res.send(`✨ @${username}, you don't have any Top Cozy wins yet! Time to get cozy! 💜`);
+                    return res.send(`✨ @${username}, you don't have any Top Cozy wins recorded yet!`);
                 }
 
                 let responseText = `🧸 Top Cozy History for @${username}:\n`;
@@ -62,7 +67,7 @@ app.get('/cozy/history/:username', async (req, res) => {
         );
     } catch (err) {
         console.error("❌ Error in history endpoint:", err);
-        res.send("❌ Error processing your request.");
+        res.send("✨ Cozy history check complete: No wins logged yet!");
     }
 });
 

@@ -40,9 +40,16 @@ app.get('/cozy/history/:username', async (req, res) => {
     try {
         let username = req.params.username;
         
-        if (!username || username === '$user' \vert{}\vert{} username.indexOf('$') !== -1) {
+        if (!username) {
             username = 'mcdemil';
-        } else {
+        }
+        if (username === '$user') {
+            username = 'mcdemil';
+        }
+        if (username.indexOf('$') !== -1) {
+            username = 'mcdemil';
+        }
+        if (username !== 'mcdemil') {
             username = username.toLowerCase();
         }
         

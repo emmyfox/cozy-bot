@@ -1,6 +1,6 @@
 require('dotenv').config();
 const express = require('express');
-const { initializeDatabase, saveCozy, db } = require('./database');
+const { initializeDatabase, saveCozy, getDb } = require('./database');
 const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder } = require('discord.js');
 
 const app = express();
@@ -53,6 +53,7 @@ app.get('/cozy/history/:username', async (req, res) => {
             username = username.toLowerCase();
         }
         
+        const db = getDb();
         if (!db) {
             return res.send(`✨ @${username}, Top Cozy History for @${username}:\n• 📅 2026-09-26 — Cozy Level: 99%`);
         }
@@ -112,6 +113,7 @@ discordClient.on('interactionCreate', async interaction => {
     if (interaction.commandName === 'mycozy') {
         const username = interaction.user.username.toLowerCase();
         
+        const db = getDb();
         if (!db) {
             return interaction.reply({ content: `✨ @${username}, database is starting up, try again in a moment!`, ephemeral: false });
         }

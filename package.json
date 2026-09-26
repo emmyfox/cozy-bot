@@ -4,6 +4,7 @@
   "description": "Cozy Bot webhook and Discord listener",
   "main": "index.js",
   "scripts": {
+    "build": "npm install",
     "start": "node index.js"
   },
   "dependencies": {

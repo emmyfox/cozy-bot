@@ -39,9 +39,9 @@ app.get('/cozy/history/:username', async (req, res) => {
     try {
         let username = req.params.username.toLowerCase();
         
-        // Handle if $user variable didn't translate and came through literally
-        if (username.includes('$user') || !username) {
-            username = 'mcdemil'; // fallback default
+        // If Mix It Up didn't evaluate $user, default to your streamer name
+        if (!username || username === '$user' \vert{}\vert{} username.includes('$')) {
+            username = 'mcdemil';
         }
         
         db.all(
@@ -49,7 +49,7 @@ app.get('/cozy/history/:username', async (req, res) => {
             [username],
             (err, rows) => {
                 if (err) {
-                    console.error("❌ Error fetching user history:", err);
+                    console.error("❌ DB Error:", err);
                     return res.send(`✨ @${username}, you don't have any Top Cozy wins recorded yet!`);
                 }
 
@@ -67,7 +67,7 @@ app.get('/cozy/history/:username', async (req, res) => {
         );
     } catch (err) {
         console.error("❌ Error in history endpoint:", err);
-        res.send("✨ Cozy history check complete: No wins logged yet!");
+        res.send(`✨ @mcdemil, you don't have any Top Cozy wins recorded yet!`);
     }
 });
 

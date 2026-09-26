@@ -1,6 +1,7 @@
 require("dotenv").config();
 const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
+const https = require('https'); // Added for self-ping
 
 const app = express();
 app.use(express.json());
@@ -62,7 +63,6 @@ function getDailyWinner(callback) {
 
 // --- WEBHOOK ROUTES FOR MIX IT UP & DISCORD ---
 
-// 1. Save a cozy moment (called by Mix It Up or custom action)
 app.post('/cozy', (req, res) => {
     const { userId, content } = req.body;
     if (!userId || !content) {
@@ -77,7 +77,6 @@ app.post('/cozy', (req, res) => {
     });
 });
 
-// 2. Save today's top cozy winner (triggered by Mix It Up at stream end)
 app.post('/top-cozy', (req, res) => {
     const { winnerName, score } = req.body;
     if (!winnerName) {
@@ -92,7 +91,6 @@ app.post('/top-cozy', (req, res) => {
     });
 });
 
-// 3. Get today's top cozy winner (for Discord or Mix It Up lookups)
 app.get('/top-cozy', (req, res) => {
     getDailyWinner((err, row) => {
         if (err) {
@@ -109,7 +107,16 @@ app.get('/', (req, res) => {
     res.send('Cozy Bot Webhook API is alive and running!');
 });
 
-// --- START SERVER ---
+// --- START SERVER & KEEP-ALIVE PING ---
 app.listen(PORT, () => {
     console.log(`🧸 Cozy web server running on port ${PORT}`);
+
+    // Self-ping loop every 14 minutes to prevent Render free tier spin-down
+    setInterval(() => {
+        https.get('https://cozy-bot-e1zc.onrender.com', (res) => {
+            console.log(`Keep-alive ping sent, status: ${res.statusCode}`);
+        }).on('error', (err) => {
+            console.error('Keep-alive ping failed:', err.message);
+        });
+    }, 14 * 60 * 1000);
 });

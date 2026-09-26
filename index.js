@@ -23,12 +23,15 @@ const client = new Client({
 // Send Top Cozy via the active Discord client channel cache (bypasses Cloudflare REST rate limits)
 async function sendDiscordWebhookMessage(username, cozyLevel, streamDate) {
     try {
-        // Ensure Discord client is fully ready and connected
-        if (!client.isReady()) {
-            console.log("⏳ Waiting for Discord client to be fully ready...");
-            await new Promise(resolve => {
-                if (client.isReady()) resolve();
-                else client.once('ready', resolve);
+        // If client is not ready or user isn't populated yet, wait briefly for the ready event
+        if (!client.isReady() || !client.user) {
+            console.log("⏳ Waiting for Discord client ready event...");
+            await new Promise((resolve) => {
+                if (client.isReady() && client.user) {
+                    resolve();
+                } else {
+                    client.once('ready', resolve);
+                }
             });
         }
 

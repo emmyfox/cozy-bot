@@ -135,13 +135,15 @@ discordClient.on('interactionCreate', async interaction => {
     }
 });
 
-// --- STARTUP FUNCTION ---
+// --- SYNCHRONIZED STARTUP FUNCTION ---
 
 async function startBot() {
     console.log("🧸 Starting Cozy Bot...");
     console.log("🧸 Initializing database...");
+    
+    // Await database creation completely BEFORE starting the web server or Discord bot
     await initializeDatabase();
-    console.log("✅ Database initialized.");
+    console.log("✅ Database initialized successfully.");
 
     app.listen(PORT, () => {
         console.log(`🧸 Cozy web server running on port ${PORT}`);

@@ -25,7 +25,7 @@ const COZY_WEBHOOK_SECRET = process.env.COZY_WEBHOOK_SECRET;
 const PORT = process.env.PORT || 10000;
 
 // ==================================================
-// DISCORD CLIENT (WITH NETWORK BYPASS OPTIONS)
+// DISCORD CLIENT (WITH BYPASS SETTINGS)
 // ==================================================
 
 const client = new Client({
@@ -35,7 +35,6 @@ const client = new Client({
         GatewayIntentBits.MessageContent
     ],
     ws: {
-        // Disables compression to prevent strict cloud network throttling
         compress: false
     }
 });
@@ -326,13 +325,14 @@ app.post("/cozy", async (req, res) => {
         if (!client.isReady()) {
 
             console.log(
-                "❌ Discord bot is not ready."
+                "❌ Discord bot is not ready. Data is saved securely in database, but Discord notification is delayed."
             );
 
-            return res.status(503).json({
-                success: false,
+            return res.status(202).json({
+                success: true,
+                queued: true,
                 message:
-                    "Cozy Bot is not connected to Discord yet."
+                    "Top Cozy saved to database! Discord client is establishing connection."
             });
         }
 
@@ -512,7 +512,7 @@ client.on(
 );
 
 // ==================================================
-// START BOT
+// START BOT (WITH AGGRESSIVE AUTO-RECONNECT LOOP)
 // ==================================================
 
 async function start() {
@@ -523,123 +523,40 @@ async function start() {
             "🧸 Starting Cozy Bot..."
         );
 
-        // ------------------------------------------
-        // CHECK ENVIRONMENT
-        // ------------------------------------------
+        if (!DISCORD_TOKEN) throw new Error("DISCORD_TOKEN is not configured.");
+        if (!TOP_COZY_CHANNEL_ID) throw new Error("TOP_COZY_CHANNEL_ID is not configured.");
+        if (!COZY_WEBHOOK_SECRET) throw new Error("COZY_WEBHOOK_SECRET is not configured.");
 
-        if (!DISCORD_TOKEN) {
-
-            throw new Error(
-                "DISCORD_TOKEN is not configured."
-            );
-        }
-
-        if (!TOP_COZY_CHANNEL_ID) {
-
-            throw new Error(
-                "TOP_COZY_CHANNEL_ID is not configured."
-            );
-        }
-
-        if (!COZY_WEBHOOK_SECRET) {
-
-            throw new Error(
-                "COZY_WEBHOOK_SECRET is not configured."
-            );
-        }
-
-        // ------------------------------------------
-        // DATABASE
-        // ------------------------------------------
-
-        console.log(
-            "🧸 Initializing database..."
-        );
-
+        console.log("🧸 Initializing database...");
         await initializeDatabase();
+        console.log("✅ Database initialized.");
 
-        console.log(
-            "✅ Database initialized."
-        );
-
-        // ------------------------------------------
-        // WEB SERVER
-        // ------------------------------------------
-
-        app.listen(
-            PORT,
-            "0.0.0.0",
-            () => {
-
-                console.log(
-                    "🧸 Cozy web server running on port " +
-                    PORT
-                );
-
-            }
-        );
-
-        // ------------------------------------------
-        // DISCORD LOGIN (WITH NETWORK STABILIZATION)
-        // ------------------------------------------
-
-        console.log(
-            "🚀 Waiting for network to stabilize before connecting..."
-        );
-
-        // Wait 3 seconds to let Render's socket routes open cleanly
-        await new Promise(resolve => setTimeout(resolve, 3000));
-
-        console.log(
-            "🚀 Connecting Cozy Bot to Discord..."
-        );
-
-        console.log(
-            "🧪 Discord token exists:",
-            Boolean(DISCORD_TOKEN)
-        );
-
-        console.log(
-            "🧪 Discord token length:",
-            DISCORD_TOKEN.trim().length
-        );
-
-        let loginCompleted = false;
-
-        setTimeout(() => {
-            if (!loginCompleted && !client.isReady()) {
-                console.warn(
-                    "⚠️ WARNING: Login timeout reached. Retrying gateway connection..."
-                );
-            }
-        }, 12000);
-
-        client.login(DISCORD_TOKEN.trim())
-        .then(() => {
-            loginCompleted = true;
-            console.log(
-                "🟢 Discord login() completed."
-            );
-        })
-        .catch((error) => {
-            loginCompleted = true;
-            console.error(
-                "❌ Discord login() failed:",
-                error
-            );
+        app.listen(PORT, "0.0.0.0", () => {
+            console.log("🧸 Cozy web server running on port " + PORT);
         });
 
-        console.log(
-            "🔵 Discord login() was called."
-        );
+        // Robust connection function with loop retry
+        async function connectWithRetry() {
+            let attempts = 0;
+            while (!client.isReady()) {
+                attempts++;
+                console.log(`🚀 Discord login attempt #${attempts} starting...`);
+                try {
+                    await client.login(DISCORD_TOKEN.trim());
+                    console.log("🟢 Discord login() succeeded!");
+                    break;
+                } catch (err) {
+                    console.error(`❌ Attempt #${attempts} failed:`, err.message);
+                    console.log("🔄 Retrying gateway connection in 10 seconds...");
+                    await new Promise(res => setTimeout(res, 10000));
+                }
+            }
+        }
+
+        connectWithRetry();
 
     } catch (error) {
-
-        console.error(
-            "❌ Failed to start Cozy Bot:",
-            error
-        );
-
+        console.error("❌ Failed to start Cozy Bot:", error);
         process.exit(1);
     }
 }

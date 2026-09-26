@@ -35,9 +35,19 @@ app.post('/cozy', async (req, res) => {
 
 app.get('/cozy/history/:username', async (req, res) => {
     try {
-        let username = req.params.username.toLowerCase();
+        let username = req.params.username;
         
-        if (!username || username === '$user' \vert{}\vert{} username.includes('$')) {
+        if (!username) {
+            username = 'mcdemil';
+        } else {
+            username = username.toLowerCase();
+        }
+        
+        if (username === '$user') {
+            username = 'mcdemil';
+        }
+        
+        if (username.indexOf('$') !== -1) {
             username = 'mcdemil';
         }
         

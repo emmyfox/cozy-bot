@@ -138,5 +138,5 @@ async function startBot() {
 }
 
 startBot().catch(err => {
-    console.error("❌ Fatal error starting bot:", err);
+    console.log("❌ Fatal error starting bot:", err);
 });

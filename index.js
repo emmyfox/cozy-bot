@@ -25,7 +25,7 @@ const COZY_WEBHOOK_SECRET = process.env.COZY_WEBHOOK_SECRET;
 const PORT = process.env.PORT || 10000;
 
 // ==================================================
-// DISCORD CLIENT
+// DISCORD CLIENT (WITH NETWORK BYPASS OPTIONS)
 // ==================================================
 
 const client = new Client({
@@ -33,7 +33,11 @@ const client = new Client({
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent
-    ]
+    ],
+    ws: {
+        // Disables compression to prevent strict cloud network throttling
+        compress: false
+    }
 });
 
 // ==================================================
@@ -576,8 +580,15 @@ async function start() {
         );
 
         // ------------------------------------------
-        // DISCORD LOGIN
+        // DISCORD LOGIN (WITH NETWORK STABILIZATION)
         // ------------------------------------------
+
+        console.log(
+            "🚀 Waiting for network to stabilize before connecting..."
+        );
+
+        // Wait 3 seconds to let Render's socket routes open cleanly
+        await new Promise(resolve => setTimeout(resolve, 3000));
 
         console.log(
             "🚀 Connecting Cozy Bot to Discord..."
@@ -598,10 +609,10 @@ async function start() {
         setTimeout(() => {
             if (!loginCompleted && !client.isReady()) {
                 console.warn(
-                    "⚠️ WARNING: Discord login is taking longer than expected. Render network may be throttling the gateway websocket."
+                    "⚠️ WARNING: Login timeout reached. Retrying gateway connection..."
                 );
             }
-        }, 10000);
+        }, 12000);
 
         client.login(DISCORD_TOKEN.trim())
         .then(() => {

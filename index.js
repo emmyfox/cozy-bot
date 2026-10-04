@@ -15,16 +15,21 @@ const {
 } = require("./database");
 
 const app = express();
+
 app.use(express.json());
 
 const PORT = process.env.PORT || 10000;
 
-const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
+// ==================================================
+// RENDER ENVIRONMENT VARIABLES
+// ==================================================
+
+const DISCORD_TOKEN = process.env.DISCORD_BOT_TOKEN;
 const TOP_COZY_CHANNEL_ID = process.env.TOP_COZY_CHANNEL_ID;
 const COZY_WEBHOOK_SECRET = process.env.COZY_WEBHOOK_SECRET;
 
 // ==================================================
-// DISCORD
+// DISCORD CLIENT
 // ==================================================
 
 const client = new Client({
@@ -34,6 +39,10 @@ const client = new Client({
         GatewayIntentBits.MessageContent
     ]
 });
+
+// ==================================================
+// DISCORD READY
+// ==================================================
 
 client.once("ready", () => {
     console.log(`🧸 Cozy Bot ONLINE as ${client.user.tag}`);
@@ -52,10 +61,11 @@ app.get("/", (req, res) => {
 });
 
 // ==================================================
-// TOP COZY DISCORD POST
+// SEND TOP COZY TO DISCORD
 // ==================================================
 
 async function postTopCozy(username, cozyLevel, streamDate) {
+
     if (!client.isReady()) {
         throw new Error("Discord bot is not ready.");
     }
@@ -68,7 +78,9 @@ async function postTopCozy(username, cozyLevel, streamDate) {
         throw new Error("Top Cozy channel was not found.");
     }
 
-    const date = new Date(`${streamDate}T00:00:00`);
+    const date = new Date(
+        `${streamDate}T00:00:00`
+    );
 
     const formattedDate = date.toLocaleDateString(
         "en-US",
@@ -99,11 +111,13 @@ async function postTopCozy(username, cozyLevel, streamDate) {
 }
 
 // ==================================================
-// MIX IT UP → COZY WEBHOOK
+// MIX IT UP → RENDER
 // ==================================================
 
 app.post("/cozy", async (req, res) => {
+
     try {
+
         console.log("🧸 COZY POST RECEIVED:", {
             username: req.body.username,
             cozyLevel: req.body.cozyLevel,
@@ -111,13 +125,14 @@ app.post("/cozy", async (req, res) => {
         });
 
         // ------------------------------------------
-        // SECRET
+        // CHECK SECRET
         // ------------------------------------------
 
         if (
             !req.body.secret ||
             req.body.secret !== COZY_WEBHOOK_SECRET
         ) {
+
             console.log("❌ Invalid Cozy secret.");
 
             return res.status(401).json({
@@ -134,6 +149,7 @@ app.post("/cozy", async (req, res) => {
             String(req.body.username || "").trim();
 
         if (!username) {
+
             return res.status(400).json({
                 success: false,
                 message: "Username is required."
@@ -144,39 +160,43 @@ app.post("/cozy", async (req, res) => {
         // COZY LEVEL
         // ------------------------------------------
 
-        const cozyLevel = Number(req.body.cozyLevel);
+        const cozyLevel =
+            Number(req.body.cozyLevel);
 
         if (
             !Number.isInteger(cozyLevel) ||
             cozyLevel < 0 ||
             cozyLevel > 100
         ) {
+
             return res.status(400).json({
                 success: false,
-                message: "Cozy level must be between 0 and 100."
+                message:
+                    "Cozy level must be between 0 and 100."
             });
         }
 
         // ------------------------------------------
-        // DATE
+        // STREAM DATE
         // ------------------------------------------
 
-        // If Mix It Up sends a streamDate, use it.
-        // Otherwise use today's date.
-        let streamDate = String(
-            req.body.streamDate || ""
-        ).trim();
+        let streamDate =
+            String(req.body.streamDate || "").trim();
 
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(streamDate)) {
-            streamDate = new Intl.DateTimeFormat(
-                "en-CA",
-                {
-                    timeZone: "America/New_York",
-                    year: "numeric",
-                    month: "2-digit",
-                    day: "2-digit"
-                }
-            ).format(new Date());
+        if (
+            !/^\d{4}-\d{2}-\d{2}$/.test(streamDate)
+        ) {
+
+            streamDate =
+                new Intl.DateTimeFormat(
+                    "en-CA",
+                    {
+                        timeZone: "America/New_York",
+                        year: "numeric",
+                        month: "2-digit",
+                        day: "2-digit"
+                    }
+                ).format(new Date());
         }
 
         console.log(
@@ -184,7 +204,7 @@ app.post("/cozy", async (req, res) => {
         );
 
         // ------------------------------------------
-        // SAVE
+        // SAVE TO DATABASE
         // ------------------------------------------
 
         const saveResult = await saveCozy(
@@ -199,19 +219,23 @@ app.post("/cozy", async (req, res) => {
         );
 
         if (!saveResult.row) {
+
             return res.status(500).json({
                 success: false,
-                message: "Could not save Cozy record."
+                message:
+                    "Could not save Cozy record."
             });
         }
 
-        const recordId = saveResult.row.id;
+        const recordId =
+            saveResult.row.id;
 
         // ------------------------------------------
-        // ALREADY POSTED?
+        // CHECK IF ALREADY POSTED
         // ------------------------------------------
 
         if (saveResult.row.discord_posted) {
+
             console.log(
                 "ℹ️ This Cozy result was already posted."
             );
@@ -219,7 +243,8 @@ app.post("/cozy", async (req, res) => {
             return res.json({
                 success: true,
                 duplicate: true,
-                message: "Already posted."
+                message:
+                    "This Cozy result was already posted."
             });
         }
 
@@ -234,7 +259,7 @@ app.post("/cozy", async (req, res) => {
         );
 
         // ------------------------------------------
-        // MARK POSTED
+        // MARK AS POSTED
         // ------------------------------------------
 
         await markDiscordPosted(recordId);
@@ -252,6 +277,7 @@ app.post("/cozy", async (req, res) => {
         });
 
     } catch (error) {
+
         console.error(
             "❌ /cozy ERROR:",
             error
@@ -269,8 +295,12 @@ app.post("/cozy", async (req, res) => {
 // ==================================================
 
 client.on("messageCreate", async (message) => {
+
     try {
-        if (message.author.bot) return;
+
+        if (message.author.bot) {
+            return;
+        }
 
         if (
             message.content.trim().toLowerCase() !==
@@ -279,7 +309,8 @@ client.on("messageCreate", async (message) => {
             return;
         }
 
-        const username = message.author.username;
+        const username =
+            message.author.username;
 
         const history =
             await getCozyHistory(username);
@@ -287,7 +318,15 @@ client.on("messageCreate", async (message) => {
         const winCount =
             await getCozyWinCount(username);
 
-        if (!history || history.length === 0) {
+        // ------------------------------------------
+        // NO WINS
+        // ------------------------------------------
+
+        if (
+            !history ||
+            history.length === 0
+        ) {
+
             return message.reply({
                 embeds: [
                     {
@@ -301,28 +340,35 @@ client.on("messageCreate", async (message) => {
             });
         }
 
-        const historyText = history
-            .map((record) => {
-                const date = new Date(
-                    `${record.stream_date}T00:00:00`
-                );
+        // ------------------------------------------
+        // HISTORY
+        // ------------------------------------------
 
-                const formattedDate =
-                    date.toLocaleDateString(
-                        "en-US",
-                        {
-                            month: "long",
-                            day: "numeric",
-                            year: "numeric"
-                        }
+        const historyText =
+            history
+                .map((record) => {
+
+                    const date =
+                        new Date(
+                            `${record.stream_date}T00:00:00`
+                        );
+
+                    const formattedDate =
+                        date.toLocaleDateString(
+                            "en-US",
+                            {
+                                month: "long",
+                                day: "numeric",
+                                year: "numeric"
+                            }
+                        );
+
+                    return (
+                        `📅 ${formattedDate} — ` +
+                        `**${record.cozy_level}%**`
                     );
-
-                return (
-                    `📅 ${formattedDate} — ` +
-                    `**${record.cozy_level}%**`
-                );
-            })
-            .join("\n");
+                })
+                .join("\n");
 
         return message.reply({
             embeds: [
@@ -339,6 +385,7 @@ client.on("messageCreate", async (message) => {
         });
 
     } catch (error) {
+
         console.error(
             "❌ !mycozy ERROR:",
             error
@@ -347,41 +394,70 @@ client.on("messageCreate", async (message) => {
 });
 
 // ==================================================
-// START
+// START BOT
 // ==================================================
 
 async function start() {
+
     console.log("🧸 Starting Cozy Bot...");
 
+    // ------------------------------------------
+    // CHECK DISCORD TOKEN
+    // ------------------------------------------
+
     if (!DISCORD_TOKEN) {
+
         throw new Error(
-            "DISCORD_TOKEN is missing."
+            "DISCORD_BOT_TOKEN is missing."
         );
     }
 
+    // ------------------------------------------
+    // CHECK CHANNEL
+    // ------------------------------------------
+
     if (!TOP_COZY_CHANNEL_ID) {
+
         throw new Error(
             "TOP_COZY_CHANNEL_ID is missing."
         );
     }
 
+    // ------------------------------------------
+    // CHECK SECRET
+    // ------------------------------------------
+
     if (!COZY_WEBHOOK_SECRET) {
+
         throw new Error(
             "COZY_WEBHOOK_SECRET is missing."
         );
     }
 
+    // ------------------------------------------
+    // DATABASE
+    // ------------------------------------------
+
     await initializeDatabase();
+
+    // ------------------------------------------
+    // WEB SERVER
+    // ------------------------------------------
 
     app.listen(
         PORT,
         "0.0.0.0",
         () => {
+
             console.log(
                 `🧸 Cozy web server running on port ${PORT}`
             );
         }
     );
+
+    // ------------------------------------------
+    // DISCORD
+    // ------------------------------------------
 
     console.log(
         "🚀 Connecting Cozy Bot to Discord..."
@@ -390,7 +466,12 @@ async function start() {
     await client.login(DISCORD_TOKEN);
 }
 
+// ==================================================
+// START
+// ==================================================
+
 start().catch((error) => {
+
     console.error(
         "❌ Failed to start Cozy Bot:",
         error

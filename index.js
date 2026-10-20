@@ -66,8 +66,19 @@ app.get("/", (req, res) => {
 
 async function postTopCozy(username, cozyLevel, streamDate) {
 
+    // If client is not fully ready, wait up to 10 seconds for the ready event
     if (!client.isReady()) {
-        throw new Error("Discord bot is not ready.");
+        console.log("⏳ Discord client not ready yet, waiting for ready event...");
+        await new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+                reject(new Error("Discord bot readiness timeout."));
+            }, 10000);
+
+            client.once("ready", () => {
+                clearTimeout(timeout);
+                resolve();
+            });
+        });
     }
 
     const channel = await client.channels.fetch(

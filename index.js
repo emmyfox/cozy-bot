@@ -106,7 +106,7 @@ async function postTopCozy(username, cozyLevel, streamDate) {
     });
 
     console.log(
-        `✅ TOP COZY POSTED: ${username} - ${cozyLevel}% - ${streamDate}`
+        `✅ TOP COZY POSTED: ${username} ${cozyLevel}% - ${streamDate}`
     );
 }
 
@@ -401,69 +401,35 @@ async function start() {
 
     console.log("🧸 Starting Cozy Bot...");
 
-    // ------------------------------------------
-    // CHECK DISCORD TOKEN
-    // ------------------------------------------
-
     if (!DISCORD_TOKEN) {
-
-        throw new Error(
-            "DISCORD_BOT_TOKEN is missing."
-        );
+        throw new Error("DISCORD_BOT_TOKEN is missing.");
     }
-
-    // ------------------------------------------
-    // CHECK CHANNEL
-    // ------------------------------------------
 
     if (!TOP_COZY_CHANNEL_ID) {
-
-        throw new Error(
-            "TOP_COZY_CHANNEL_ID is missing."
-        );
+        throw new Error("TOP_COZY_CHANNEL_ID is missing.");
     }
-
-    // ------------------------------------------
-    // CHECK SECRET
-    // ------------------------------------------
 
     if (!COZY_WEBHOOK_SECRET) {
-
-        throw new Error(
-            "COZY_WEBHOOK_SECRET is missing."
-        );
+        throw new Error("COZY_WEBHOOK_SECRET is missing.");
     }
 
-    // ------------------------------------------
-    // DATABASE
-    // ------------------------------------------
-
+    // Initialize Database
     await initializeDatabase();
 
-    // ------------------------------------------
-    // WEB SERVER
-    // ------------------------------------------
+    // Connect to Discord and wait for login BEFORE opening server routes
+    console.log("🚀 Connecting Cozy Bot to Discord...");
+    await client.login(DISCORD_TOKEN);
 
+    // Start Web Server only after Discord client is fully ready
     app.listen(
         PORT,
         "0.0.0.0",
         () => {
-
             console.log(
                 `🧸 Cozy web server running on port ${PORT}`
             );
         }
     );
-
-    // ------------------------------------------
-    // DISCORD
-    // ------------------------------------------
-
-    console.log(
-        "🚀 Connecting Cozy Bot to Discord..."
-    );
-
-    await client.login(DISCORD_TOKEN);
 }
 
 // ==================================================

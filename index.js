@@ -420,11 +420,14 @@ async function start() {
         }
     );
 
-    // Connect to Discord in the background
+    // Connect to Discord and explicitly log success or failure
     console.log("🚀 Connecting Cozy Bot to Discord...");
-    client.login(DISCORD_TOKEN).catch((error) => {
+    try {
+        await client.login(DISCORD_TOKEN);
+        console.log("✅ Discord login method completed successfully.");
+    } catch (error) {
         console.error("❌ Critical Discord Login Failure:", error);
-    });
+    }
 }
 
 // ==================================================

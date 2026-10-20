@@ -61,64 +61,68 @@ app.get("/", (req, res) => {
 });
 
 // ==================================================
-// SEND TOP COZY TO DISCORD
+// SEND TOP COZY TO DISCORD (BACKGROUND SAFE)
 // ==================================================
 
-async function postTopCozy(username, cozyLevel, streamDate) {
-
-    // If client is not fully ready, wait up to 10 seconds for the ready event
-    if (!client.isReady()) {
-        console.log("⏳ Discord client not ready yet, waiting for ready event...");
-        await new Promise((resolve, reject) => {
-            const timeout = setTimeout(() => {
-                reject(new Error("Discord bot readiness timeout."));
-            }, 10000);
-
-            client.once("ready", () => {
-                clearTimeout(timeout);
-                resolve();
+async function postTopCozyInBackground(username, cozyLevel, streamDate, recordId) {
+    try {
+        // Wait for client to be ready in the background without blocking the HTTP response
+        if (!client.isReady()) {
+            console.log("⏳ Discord client booting up, waiting for connection in background...");
+            await new Promise((resolve) => {
+                const checkInterval = setInterval(() => {
+                    if (client.isReady()) {
+                        clearInterval(checkInterval);
+                        resolve();
+                    }
+                }, 1000);
             });
-        });
-    }
-
-    const channel = await client.channels.fetch(
-        TOP_COZY_CHANNEL_ID
-    );
-
-    if (!channel) {
-        throw new Error("Top Cozy channel was not found.");
-    }
-
-    const date = new Date(
-        `${streamDate}T00:00:00`
-    );
-
-    const formattedDate = date.toLocaleDateString(
-        "en-US",
-        {
-            month: "long",
-            day: "numeric",
-            year: "numeric"
         }
-    );
 
-    await channel.send({
-        embeds: [
+        const channel = await client.channels.fetch(
+            TOP_COZY_CHANNEL_ID
+        );
+
+        if (!channel) {
+            console.error("❌ Top Cozy channel was not found.");
+            return;
+        }
+
+        const date = new Date(
+            `${streamDate}T00:00:00`
+        );
+
+        const formattedDate = date.toLocaleDateString(
+            "en-US",
             {
-                title: "🧸 TOP COZY!",
-                description:
-                    `✨ **${username}** was today's Top Cozy!\n\n` +
-                    `💜 Cozy Level: **${cozyLevel}%**\n` +
-                    `📅 ${formattedDate}\n\n` +
-                    `☕ Thank you for being cozy! 💜`,
-                color: 0xC084FC
+                month: "long",
+                day: "numeric",
+                year: "numeric"
             }
-        ]
-    });
+        );
 
-    console.log(
-        `✅ TOP COZY POSTED: ${username} ${cozyLevel}% - ${streamDate}`
-    );
+        await channel.send({
+            embeds: [
+                {
+                    title: "🧸 TOP COZY!",
+                    description:
+                        `✨ **${username}** was today's Top Cozy!\n\n` +
+                        `💜 Cozy Level: **${cozyLevel}%**\n` +
+                        `📅 ${formattedDate}\n\n` +
+                        `☕ Thank you for being cozy! 💜`,
+                    color: 0xC084FC
+                }
+            ]
+        });
+
+        await markDiscordPosted(recordId);
+
+        console.log(
+            `✅ TOP COZY POSTED: ${username} ${cozyLevel}% - ${streamDate}`
+        );
+    } catch (error) {
+        console.error("❌ Background Discord post error:", error);
+    }
 }
 
 // ==================================================
@@ -242,50 +246,26 @@ app.post("/cozy", async (req, res) => {
             saveResult.row.id;
 
         // ------------------------------------------
-        // CHECK IF ALREADY POSTED
+        // RESPOND TO MIX IT UP IMMEDIATELY
         // ------------------------------------------
 
-        if (saveResult.row.discord_posted) {
-
-            console.log(
-                "ℹ️ This Cozy result was already posted."
-            );
-
-            return res.json({
-                success: true,
-                duplicate: true,
-                message:
-                    "This Cozy result was already posted."
-            });
-        }
-
-        // ------------------------------------------
-        // POST TO DISCORD
-        // ------------------------------------------
-
-        await postTopCozy(
-            username,
-            cozyLevel,
-            streamDate
-        );
-
-        // ------------------------------------------
-        // MARK AS POSTED
-        // ------------------------------------------
-
-        await markDiscordPosted(recordId);
-
-        console.log(
-            "✅ Cozy record marked as posted."
-        );
-
-        return res.json({
+        res.json({
             success: true,
-            duplicate: false,
+            duplicate: saveResult.row.discord_posted,
             username,
             cozyLevel,
             streamDate
         });
+
+        // ------------------------------------------
+        // POST TO DISCORD IN BACKGROUND
+        // ------------------------------------------
+
+        if (!saveResult.row.discord_posted) {
+            postTopCozyInBackground(username, cozyLevel, streamDate, recordId);
+        } else {
+            console.log("ℹ️ This Cozy result was already posted.");
+        }
 
     } catch (error) {
 
@@ -294,10 +274,12 @@ app.post("/cozy", async (req, res) => {
             error
         );
 
-        return res.status(500).json({
-            success: false,
-            message: error.message
-        });
+        if (!res.headersSent) {
+            return res.status(500).json({
+                success: false,
+                message: error.message
+            });
+        }
     }
 });
 
@@ -427,7 +409,7 @@ async function start() {
     // Initialize Database
     await initializeDatabase();
 
-    // Start Web Server immediately so Render detects the open port on 10000
+    // Start Web Server immediately so Render detects port 10000
     app.listen(
         PORT,
         "0.0.0.0",
@@ -438,10 +420,10 @@ async function start() {
         }
     );
 
-    // Connect to Discord in the background so it doesn't block port detection
+    // Connect to Discord in the background
     console.log("🚀 Connecting Cozy Bot to Discord...");
     client.login(DISCORD_TOKEN).catch((error) => {
-        console.error("❌ Discord login error:", error);
+        console.error("❌ Critical Discord Login Failure:", error);
     });
 }
 

@@ -427,11 +427,7 @@ async function start() {
     // Initialize Database
     await initializeDatabase();
 
-    // Connect to Discord and wait for login BEFORE opening server routes
-    console.log("🚀 Connecting Cozy Bot to Discord...");
-    await client.login(DISCORD_TOKEN);
-
-    // Start Web Server only after Discord client is fully ready
+    // Start Web Server immediately so Render detects the open port on 10000
     app.listen(
         PORT,
         "0.0.0.0",
@@ -441,6 +437,12 @@ async function start() {
             );
         }
     );
+
+    // Connect to Discord in the background so it doesn't block port detection
+    console.log("🚀 Connecting Cozy Bot to Discord...");
+    client.login(DISCORD_TOKEN).catch((error) => {
+        console.error("❌ Discord login error:", error);
+    });
 }
 
 // ==================================================

@@ -36,9 +36,6 @@ async function initializeDatabase() {
         )
     `);
 
-    // Make sure older versions of the table
-    // get the discord_posted column too.
-
     await pool.query(`
         ALTER TABLE cozy_history
         ADD COLUMN IF NOT EXISTS
@@ -49,7 +46,7 @@ async function initializeDatabase() {
 }
 
 // ==================================================
-// SAVE COZY RESULT
+// SAVE COZY RESULT (UPDATED WITH UPSERT)
 // ==================================================
 
 async function saveCozy(
@@ -69,7 +66,7 @@ async function saveCozy(
         VALUES ($1, $2, $3)
 
         ON CONFLICT (username, stream_date)
-        DO NOTHING
+        DO UPDATE SET cozy_level = EXCLUDED.cozy_level
 
         RETURNING
             id,
@@ -85,49 +82,9 @@ async function saveCozy(
         ]
     );
 
-    // ------------------------------------------
-    // NEW RECORD
-    // ------------------------------------------
-
-    if (result.rowCount > 0) {
-
-        return {
-            saved: true,
-            row: result.rows[0]
-        };
-    }
-
-    // ------------------------------------------
-    // RECORD ALREADY EXISTS
-    // ------------------------------------------
-
-    const existing =
-        await pool.query(
-            `
-            SELECT
-                id,
-                username,
-                cozy_level,
-                stream_date,
-                discord_posted
-
-            FROM cozy_history
-
-            WHERE LOWER(username) = LOWER($1)
-
-            AND stream_date = $2
-
-            LIMIT 1
-            `,
-            [
-                username,
-                streamDate
-            ]
-        );
-
     return {
-        saved: false,
-        row: existing.rows[0] || null
+        saved: true,
+        row: result.rows[0]
     };
 }
 

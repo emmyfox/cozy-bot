@@ -106,7 +106,7 @@ async function postTopCozy(username, cozyLevel, streamDate) {
     });
 
     console.log(
-        `✅ TOP COZY POSTED: ${username} - ${cozyLevel}% - ${streamDate}`
+        `✅ TOP COZY POSTED: ${username} ${cozyLevel}% - ${streamDate}`
     );
 }
 

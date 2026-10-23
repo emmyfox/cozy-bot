@@ -3,8 +3,7 @@ require("dotenv").config();
 const express = require("express");
 const {
     Client,
-    GatewayIntentBits,
-    WebSocketManager
+    GatewayIntentBits
 } = require("discord.js");
 const https = require("https");
 
@@ -42,8 +41,8 @@ const client = new Client({
     ]
 });
 
-// Detailed WebSocket debugging
-client.ws.on(WebSocketManager.events.DEBUG, (debug) => {
+// Detailed client debugging
+client.on("debug", (debug) => {
     console.log(`🔎 Discord debug: ${debug}`);
 });
 

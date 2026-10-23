@@ -328,27 +328,32 @@ async function start() {
         }).on("error", () => {});
     }, 10 * 60 * 1000);
 
-   
-console.log("🚀 Connecting Cozy Bot to Discord...");
+    console.log("🚀 Connecting Cozy Bot to Discord...");
 
-client.on("debug", (message) => {
-    if (
-        message.toLowerCase().includes("error") ||
-        message.toLowerCase().includes("heartbeat") ||
-        message.toLowerCase().includes("identify") ||
-        message.toLowerCase().includes("connect")
-    ) {
-        console.log("🔎 Discord connection debug:", message);
-    }
-});
+    // Extra diagnostics to help identify why Discord may not become ready.
+    client.on("debug", (message) => {
+        const text = message.toLowerCase();
 
-client.login(DISCORD_TOKEN)
-    .then(() => {
-        console.log("✅ Discord login completed.");
-    })
-    .catch((error) => {
-        console.error(
-            "❌ Critical Discord Login Failure:",
-            error.message
-        );
+        if (
+            text.includes("error") ||
+            text.includes("heartbeat") ||
+            text.includes("identify") ||
+            text.includes("connect") ||
+            text.includes("session")
+        ) {
+            console.log("🔎 Discord connection debug:", message);
+        }
     });
+
+    client.login(DISCORD_TOKEN)
+        .then(() => {
+            console.log("✅ Discord login request accepted; waiting for ready event.");
+        })
+        .catch((error) => {
+            console.error("❌ Critical Discord Login Failure:", error);
+        });
+}
+
+start().catch((error) => {
+    console.error("❌ Failed to start Cozy Bot:", error);
+});

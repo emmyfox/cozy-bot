@@ -28,6 +28,7 @@ const PORT = process.env.PORT || 10000;
 
 const DISCORD_TOKEN = process.env.DISCORD_BOT_TOKEN;
 const TOP_COZY_CHANNEL_ID = process.env.TOP_COZY_CHANNEL_ID;
+const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL;
 const COZY_WEBHOOK_SECRET = process.env.COZY_WEBHOOK_SECRET;
 
 // ==================================================
@@ -69,36 +70,17 @@ app.get("/cozy", (req, res) => {
 });
 
 // ==================================================
-// DIAGNOSTIC DISCORD POSTER
+// TOP COZY POSTER — USES THE DISCORD WEBHOOK
+// This does not wait for the Discord bot gateway to connect.
 // ==================================================
 
 async function postTopCozyDirect(username, cozyLevel, streamDate, recordId) {
-    console.log(`🔎 [POST DEBUG] Starting post for ${username}, client.isReady() = ${client.isReady()}`);
+    if (!DISCORD_WEBHOOK_URL) {
+        console.error("❌ DISCORD_WEBHOOK_URL is missing; Top Cozy was saved but not posted.");
+        return;
+    }
 
     try {
-        let attempts = 0;
-        while (!client.isReady() && attempts < 90) {
-            if (attempts % 10 === 0) {
-                console.log(`⏳ [POST DEBUG] Waiting for Discord... attempt ${attempts + 1}/90`);
-            }
-            await new Promise((resolve) => setTimeout(resolve, 1000));
-            attempts++;
-        }
-
-        if (!client.isReady()) {
-            console.error("❌ [POST DEBUG] Timed out waiting for Discord client to be ready after 90 seconds.");
-            return;
-        }
-
-        console.log(`🔎 [POST DEBUG] Fetching channel ID: ${TOP_COZY_CHANNEL_ID}`);
-        const channel = await client.channels.fetch(TOP_COZY_CHANNEL_ID);
-
-        if (!channel) {
-            console.error("❌ [POST DEBUG] Channel not found!");
-            return;
-        }
-
-        console.log("🔎 [POST DEBUG] Channel found, sending message...");
         const date = new Date(`${streamDate}T00:00:00`);
         const formattedDate = date.toLocaleDateString("en-US", {
             month: "long",
@@ -106,24 +88,35 @@ async function postTopCozyDirect(username, cozyLevel, streamDate, recordId) {
             year: "numeric"
         });
 
-        await channel.send({
-            embeds: [
-                {
-                    title: "🧸 TOP COZY!",
-                    description:
-                        `✨ **${username}** was today's Top Cozy!\n\n` +
-                        `💜 Cozy Level: **${cozyLevel}%**\n` +
-                        `📅 ${formattedDate}\n\n` +
-                        `☕ Thank you for being cozy! 💜`,
-                    color: 0xC084FC
-                }
-            ]
+        const response = await fetch(DISCORD_WEBHOOK_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                embeds: [
+                    {
+                        title: "🧸 TOP COZY!",
+                        description:
+                            `✨ **${username}** was today's Top Cozy!\n\n` +
+                            `💜 Cozy Level: **${cozyLevel}%**\n` +
+                            `📅 ${formattedDate}\n\n` +
+                            `☕ Thank you for being cozy! 💜`,
+                        color: 0xC084FC
+                    }
+                ],
+                allowed_mentions: { parse: [] }
+            })
         });
 
+        if (!response.ok) {
+            const details = await response.text().catch(() => "No response details");
+            console.error(`❌ Discord webhook failed (HTTP ${response.status}): ${details.slice(0, 500)}`);
+            return;
+        }
+
         await markDiscordPosted(recordId);
-        console.log(`✅ TOP COZY POSTED: ${username} ${cozyLevel}% - ${streamDate}`);
+        console.log(`✅ TOP COZY POSTED THROUGH WEBHOOK: ${username} ${cozyLevel}% - ${streamDate}`);
     } catch (error) {
-        console.error("❌ [POST DEBUG ERROR]:", error);
+        console.error("❌ TOP COZY WEBHOOK ERROR:", error);
     }
 }
 
@@ -312,7 +305,6 @@ async function start() {
     console.log("🧸 Starting Cozy Bot...");
 
     if (!DISCORD_TOKEN) throw new Error("DISCORD_BOT_TOKEN is missing.");
-    if (!TOP_COZY_CHANNEL_ID) throw new Error("TOP_COZY_CHANNEL_ID is missing.");
     if (!COZY_WEBHOOK_SECRET) throw new Error("COZY_WEBHOOK_SECRET is missing.");
 
     await initializeDatabase();
@@ -328,22 +320,7 @@ async function start() {
         }).on("error", () => {});
     }, 10 * 60 * 1000);
 
-    console.log("🚀 Connecting Cozy Bot to Discord...");
-
-    // Extra diagnostics to help identify why Discord may not become ready.
-    client.on("debug", (message) => {
-        const text = message.toLowerCase();
-
-        if (
-            text.includes("error") ||
-            text.includes("heartbeat") ||
-            text.includes("identify") ||
-            text.includes("connect") ||
-            text.includes("session")
-        ) {
-            console.log("🔎 Discord connection debug:", message);
-        }
-    });
+    console.log("🚀 Connecting Cozy Bot to Discord for !mycozy commands...");
 
     client.login(DISCORD_TOKEN)
         .then(() => {

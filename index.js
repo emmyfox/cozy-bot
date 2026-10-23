@@ -31,7 +31,7 @@ const TOP_COZY_CHANNEL_ID = process.env.TOP_COZY_CHANNEL_ID;
 const COZY_WEBHOOK_SECRET = process.env.COZY_WEBHOOK_SECRET;
 
 // ==================================================
-// DISCORD CLIENT & QUEUE
+// DISCORD CLIENT
 // ==================================================
 
 const client = new Client({
@@ -46,56 +46,12 @@ const client = new Client({
     }
 });
 
-const discordQueue = [];
-
-async function processQueue() {
-    if (!client.isReady()) return;
-
-    while (discordQueue.length > 0) {
-        const item = discordQueue.shift();
-        try {
-            const channel = await client.channels.fetch(TOP_COZY_CHANNEL_ID);
-            if (!channel) {
-                console.error("❌ Top Cozy channel was not found.");
-                continue;
-            }
-
-            const date = new Date(`${item.streamDate}T00:00:00`);
-            const formattedDate = date.toLocaleDateString("en-US", {
-                month: "long",
-                day: "numeric",
-                year: "numeric"
-            });
-
-            await channel.send({
-                embeds: [
-                    {
-                        title: "🧸 TOP COZY!",
-                        description:
-                            `✨ **${item.username}** was today's Top Cozy!\n\n` +
-                            `💜 Cozy Level: **${item.cozyLevel}%**\n` +
-                            `📅 ${formattedDate}\n\n` +
-                            `☕ Thank you for being cozy! 💜`,
-                        color: 0xC084FC
-                    }
-                ]
-            });
-
-            await markDiscordPosted(item.recordId);
-            console.log(`✅ TOP COZY POSTED: ${item.username} ${item.cozyLevel}% - ${item.streamDate}`);
-        } catch (error) {
-            console.error("❌ Queue dispatch error:", error);
-        }
-    }
-}
-
 client.on("debug", (debug) => {
-    console.log(`🔎 Discord debug: ${debug}`);
+    // Uncomment if you need deep gateway logs: console.log(`🔎 Discord debug: ${debug}`);
 });
 
-client.once("ready", async () => {
+client.once("ready", () => {
     console.log(`🧸 Cozy Bot ONLINE as ${client.user.tag}`);
-    await processQueue();
 });
 
 client.on("error", (error) => {
@@ -113,6 +69,63 @@ app.get("/", (req, res) => {
 app.get("/cozy", (req, res) => {
     res.send("🧸 Cozy endpoint is active! Send a POST request from Mix It Up.");
 });
+
+// ==================================================
+// DIRECT DIAGNOSTIC DISCORD POSTER
+// ==================================================
+
+async function postTopCozyDirect(username, cozyLevel, streamDate, recordId) {
+    console.log(`🔎 [POST DEBUG] Starting post for ${username}, client.isReady() = ${client.isReady()}`);
+
+    try {
+        let attempts = 0;
+        while (!client.isReady() && attempts < 30) {
+            console.log(`⏳ [POST DEBUG] Waiting for Discord... attempt ${attempts + 1}/30`);
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+            attempts++;
+        }
+
+        if (!client.isReady()) {
+            console.error("❌ [POST DEBUG] Timed out waiting for Discord client to be ready.");
+            return;
+        }
+
+        console.log(`🔎 [POST DEBUG] Fetching channel ID: ${TOP_COZY_CHANNEL_ID}`);
+        const channel = await client.channels.fetch(TOP_COZY_CHANNEL_ID);
+
+        if (!channel) {
+            console.error("❌ [POST DEBUG] Channel not found!");
+            return;
+        }
+
+        console.log("🔎 [POST DEBUG] Channel found, sending message...");
+        const date = new Date(`${streamDate}T00:00:00`);
+        const formattedDate = date.toLocaleDateString("en-US", {
+            month: "long",
+            day: "numeric",
+            year: "numeric"
+        });
+
+        await channel.send({
+            embeds: [
+                {
+                    title: "🧸 TOP COZY!",
+                    description:
+                        `✨ **${username}** was today's Top Cozy!\n\n` +
+                        `💜 Cozy Level: **${cozyLevel}%**\n` +
+                        `📅 ${formattedDate}\n\n` +
+                        `☕ Thank you for being cozy! 💜`,
+                    color: 0xC084FC
+                }
+            ]
+        });
+
+        await markDiscordPosted(recordId);
+        console.log(`✅ TOP COZY POSTED: ${username} ${cozyLevel}% - ${streamDate}`);
+    } catch (error) {
+        console.error("❌ [POST DEBUG ERROR]:", error);
+    }
+}
 
 // ==================================================
 // MIX IT UP → RENDER
@@ -214,8 +227,7 @@ app.post("/cozy", async (req, res) => {
         });
 
         if (!saveResult.row.discord_posted) {
-            discordQueue.push({ username, cozyLevel, streamDate, recordId });
-            processQueue();
+            postTopCozyDirect(username, cozyLevel, streamDate, recordId);
         } else {
             console.log("ℹ️ This Cozy result was already posted.");
         }

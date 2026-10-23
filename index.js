@@ -31,7 +31,7 @@ const TOP_COZY_CHANNEL_ID = process.env.TOP_COZY_CHANNEL_ID;
 const COZY_WEBHOOK_SECRET = process.env.COZY_WEBHOOK_SECRET;
 
 // ==================================================
-// DISCORD CLIENT
+// DISCORD CLIENT WITH FULL DIAGNOSTICS
 // ==================================================
 
 const client = new Client({
@@ -46,12 +46,14 @@ const client = new Client({
     }
 });
 
+client.on("warn", (info) => console.log(`⚠️ Discord warn: ${info}`));
+client.on("error", (error) => console.error("❌ Discord error event:", error));
+client.on("shardError", (error, shardId) => console.error(`❌ Discord shard ${shardId} error:`, error));
+client.on("shardDisconnect", (event, shardId) => console.log(`🔌 Discord shard ${shardId} disconnected:`, event));
+client.on("shardReconnecting", (shardId) => console.log(`🔄 Discord shard ${shardId} reconnecting...`));
+
 client.once("ready", () => {
     console.log(`🧸 Cozy Bot ONLINE as ${client.user.tag}`);
-});
-
-client.on("error", (error) => {
-    console.error("❌ Discord error:", error);
 });
 
 // ==================================================
@@ -67,7 +69,7 @@ app.get("/cozy", (req, res) => {
 });
 
 // ==================================================
-// EXTENDED DIAGNOSTIC DISCORD POSTER
+// DIAGNOSTIC DISCORD POSTER
 // ==================================================
 
 async function postTopCozyDirect(username, cozyLevel, streamDate, recordId) {
@@ -75,7 +77,6 @@ async function postTopCozyDirect(username, cozyLevel, streamDate, recordId) {
 
     try {
         let attempts = 0;
-        // Wait up to 90 seconds for Render's gateway handshake to finish
         while (!client.isReady() && attempts < 90) {
             if (attempts % 10 === 0) {
                 console.log(`⏳ [POST DEBUG] Waiting for Discord... attempt ${attempts + 1}/90`);
@@ -316,12 +317,6 @@ async function start() {
 
     await initializeDatabase();
 
-    // Start Discord login immediately so it connects concurrently with the server
-    console.log("🚀 Connecting Cozy Bot to Discord...");
-    client.login(DISCORD_TOKEN).catch((error) => {
-        console.error("❌ Critical Discord Login Failure:", error);
-    });
-
     app.listen(PORT, "0.0.0.0", () => {
         console.log(`🧸 Cozy web server running on port ${PORT}`);
     });
@@ -332,6 +327,11 @@ async function start() {
             // Keep alive
         }).on("error", () => {});
     }, 10 * 60 * 1000);
+
+    console.log("🚀 Connecting Cozy Bot to Discord...");
+    client.login(DISCORD_TOKEN).catch((error) => {
+        console.error("❌ Critical Discord Login Failure:", error);
+    });
 }
 
 start().catch((error) => {

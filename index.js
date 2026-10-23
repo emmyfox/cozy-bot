@@ -3,7 +3,8 @@ require("dotenv").config();
 const express = require("express");
 const {
     Client,
-    GatewayIntentBits
+    GatewayIntentBits,
+    ActivityType
 } = require("discord.js");
 const https = require("https");
 
@@ -38,7 +39,11 @@ const client = new Client({
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent
-    ]
+    ],
+    presence: {
+        activities: [{ name: "cozy streams ☕", type: ActivityType.Watching }],
+        status: "online"
+    }
 });
 
 const discordQueue = [];

@@ -67,19 +67,20 @@ app.get("/cozy", (req, res) => {
 });
 
 // ==================================================
-// SEND TOP COZY TO DISCORD (POLLING SAFE QUEUE)
+// SEND TOP COZY TO DISCORD (EXTENDED POLLING QUEUE)
 // ==================================================
 
 async function postTopCozySafe(username, cozyLevel, streamDate, recordId) {
     try {
-        let retries = 30;
+        // Wait up to 120 seconds for Render network / Discord connection to finish
+        let retries = 120;
         while (!client.isReady() && retries > 0) {
             await new Promise((resolve) => setTimeout(resolve, 1000));
             retries--;
         }
 
         if (!client.isReady()) {
-            throw new Error("Discord client is not ready after 30 seconds.");
+            throw new Error("Discord client is not ready after 120 seconds.");
         }
 
         const channel = await client.channels.fetch(

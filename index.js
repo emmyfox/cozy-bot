@@ -328,12 +328,27 @@ async function start() {
         }).on("error", () => {});
     }, 10 * 60 * 1000);
 
-    console.log("🚀 Connecting Cozy Bot to Discord...");
-    client.login(DISCORD_TOKEN).catch((error) => {
-        console.error("❌ Critical Discord Login Failure:", error);
-    });
-}
+   
+console.log("🚀 Connecting Cozy Bot to Discord...");
 
-start().catch((error) => {
-    console.error("❌ Failed to start Cozy Bot:", error);
+client.on("debug", (message) => {
+    if (
+        message.toLowerCase().includes("error") ||
+        message.toLowerCase().includes("heartbeat") ||
+        message.toLowerCase().includes("identify") ||
+        message.toLowerCase().includes("connect")
+    ) {
+        console.log("🔎 Discord connection debug:", message);
+    }
 });
+
+client.login(DISCORD_TOKEN)
+    .then(() => {
+        console.log("✅ Discord login completed.");
+    })
+    .catch((error) => {
+        console.error(
+            "❌ Critical Discord Login Failure:",
+            error.message
+        );
+    });

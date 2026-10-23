@@ -310,14 +310,6 @@ client.on("messageCreate", async (message) => {
 
 async function start() {
     console.log("🧸 Starting Cozy Bot...");
-    fetch("https://discord.com/api/v10/gateway")
-    .then(async response => {
-        console.log("🌐 DISCORD API TEST STATUS:", response.status);
-        console.log("🌐 DISCORD API TEST RESPONSE:", await response.text());
-    })
-    .catch(error => {
-        console.error("🌐 DISCORD API TEST FAILED:", error.message);
-    });
 
     if (!DISCORD_TOKEN) throw new Error("DISCORD_BOT_TOKEN is missing.");
     if (!TOP_COZY_CHANNEL_ID) throw new Error("TOP_COZY_CHANNEL_ID is missing.");

@@ -123,7 +123,7 @@ async function postTopCozySafe(username, cozyLevel, streamDate, recordId) {
             `✅ TOP COZY POSTED: ${username} ${cozyLevel}% - ${streamDate}`
         );
     } catch (error) {
-        console.error("❌ Background Discord post failed:", error.message);
+        console.error("❌ Background Discord post failed:", error);
     }
 }
 
@@ -318,25 +318,3 @@ async function start() {
     await initializeDatabase();
 
     app.listen(PORT, "0.0.0.0", () => {
-        console.log(`🧸 Cozy web server running on port ${PORT}`);
-    });
-
-    const RENDER_URL = process.env.RENDER_EXTERNAL_URL || "https://cozy-bot-e1zc.onrender.com/";
-    setInterval(() => {
-        https.get(RENDER_URL, (res) => {
-            // Keep alive
-        }).on("error", () => {});
-    }, 10 * 60 * 1000);
-
-    console.log("🚀 Connecting Cozy Bot to Discord...");
-    try {
-        await client.login(DISCORD_TOKEN);
-        console.log("✅ Discord login method completed successfully.");
-    } catch (error) {
-        console.error("❌ Critical Discord Login Failure:", error);
-    }
-}
-
-start().catch((error) => {
-    console.error("❌ Failed to start Cozy Bot:", error);
-});

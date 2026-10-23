@@ -46,10 +46,6 @@ const client = new Client({
     }
 });
 
-client.on("debug", (debug) => {
-    // Uncomment if you need deep gateway logs: console.log(`🔎 Discord debug: ${debug}`);
-});
-
 client.once("ready", () => {
     console.log(`🧸 Cozy Bot ONLINE as ${client.user.tag}`);
 });
@@ -71,7 +67,7 @@ app.get("/cozy", (req, res) => {
 });
 
 // ==================================================
-// DIRECT DIAGNOSTIC DISCORD POSTER
+// EXTENDED DIAGNOSTIC DISCORD POSTER
 // ==================================================
 
 async function postTopCozyDirect(username, cozyLevel, streamDate, recordId) {
@@ -79,14 +75,17 @@ async function postTopCozyDirect(username, cozyLevel, streamDate, recordId) {
 
     try {
         let attempts = 0;
-        while (!client.isReady() && attempts < 30) {
-            console.log(`⏳ [POST DEBUG] Waiting for Discord... attempt ${attempts + 1}/30`);
+        // Wait up to 90 seconds for Render's gateway handshake to finish
+        while (!client.isReady() && attempts < 90) {
+            if (attempts % 10 === 0) {
+                console.log(`⏳ [POST DEBUG] Waiting for Discord... attempt ${attempts + 1}/90`);
+            }
             await new Promise((resolve) => setTimeout(resolve, 1000));
             attempts++;
         }
 
         if (!client.isReady()) {
-            console.error("❌ [POST DEBUG] Timed out waiting for Discord client to be ready.");
+            console.error("❌ [POST DEBUG] Timed out waiting for Discord client to be ready after 90 seconds.");
             return;
         }
 
@@ -317,6 +316,12 @@ async function start() {
 
     await initializeDatabase();
 
+    // Start Discord login immediately so it connects concurrently with the server
+    console.log("🚀 Connecting Cozy Bot to Discord...");
+    client.login(DISCORD_TOKEN).catch((error) => {
+        console.error("❌ Critical Discord Login Failure:", error);
+    });
+
     app.listen(PORT, "0.0.0.0", () => {
         console.log(`🧸 Cozy web server running on port ${PORT}`);
     });
@@ -327,14 +332,6 @@ async function start() {
             // Keep alive
         }).on("error", () => {});
     }, 10 * 60 * 1000);
-
-    console.log("🚀 Connecting Cozy Bot to Discord...");
-    try {
-        await client.login(DISCORD_TOKEN);
-        console.log("✅ Discord login method completed successfully.");
-    } catch (error) {
-        console.error("❌ Critical Discord Login Failure:", error);
-    }
 }
 
 start().catch((error) => {
